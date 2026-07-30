@@ -1,0 +1,17 @@
+[project]
+name = "mio-core-services"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ollama>=0.6.2",
+    "pipecat-ai[kokoro,local,mlx-whisper,silero,whisper]>=1.6.0",
+    "pydantic>=2.13.4",
+    "ruff>=0.16.0",
+]
+
+# The package directory is hyphenated, so it can't be imported as a package;
+# main.py puts it on sys.path at runtime and this mirrors that for type checkers.
+[tool.basedpyright]
+extraPaths = ["mio-core-services"]
