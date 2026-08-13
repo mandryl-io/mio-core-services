@@ -1,26 +1,58 @@
 import asyncio
 import sys
-from pathlib import Path
 
+from pipecat.evals.transport import EvalTransportParams
+from pipecat.runner.types import RunnerArguments
+from pipecat.runner.utils import create_transport
+from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.local.audio import (
     LocalAudioTransport,
     LocalAudioTransportParams,
 )
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "mio-core-services"))
+from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
 
-from services.pipeline import MioPipeline
+SYSTEM_INSTRUCTION = (
+    "You are a helpful voice assistant. Keep replies brief and conversational."
+)
+
+
+async def _run_pipeline(transport: BaseTransport) -> None:
+    pipeline_config = MioPipelineConfig(
+        llm_model="gemma4",
+        system_instruction=SYSTEM_INSTRUCTION,
+        transport=transport,
+    )
+    await MioPipeline(pipeline_config).run_async()
+
+
+async def bot(runner_args: RunnerArguments) -> None:
+    """Pipecat runner entrypoint (e.g. ``uv run main.py -t eval``)."""
+    transport_params = {
+        "eval": lambda: EvalTransportParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+        ),
+    }
+    transport = await create_transport(runner_args, transport_params)
+    await _run_pipeline(transport)
 
 
 async def main() -> None:
+    """Interactive local mic/speakers when no ``-t`` transport is selected."""
     transport = LocalAudioTransport(
         LocalAudioTransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
         )
     )
-    await MioPipeline(transport).run_async()
+    await _run_pipeline(transport)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if "-t" in sys.argv or "--transport" in sys.argv:
+        from pipecat.runner.run import main as runner_main
+
+        runner_main()
+    else:
+        asyncio.run(main())

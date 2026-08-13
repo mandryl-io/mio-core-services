@@ -1,0 +1,7 @@
+name: capital_question
+
+turns:
+  - user: "What is the capital of Germany?"
+    expect:
+      - event: response
+        eval: "the response says the capital of Germany is Berlin"
