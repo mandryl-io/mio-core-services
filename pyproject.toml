@@ -9,8 +9,13 @@ dependencies = [
     "pipecat-ai[kokoro,local,mlx-whisper,runner,silero,whisper]>=1.6.0",
     "pydantic>=2.13.4",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.3.0",
     "ruff>=0.16.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [build-system]
 requires = ["hatchling"]

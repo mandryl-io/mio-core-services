@@ -30,8 +30,5 @@ async def test_pipeline_fails_with_invalid_service():
         transport=transport,
     )
     pipeline = MioPipeline(pipeline_config)
-    with pytest.raises(RuntimeError) as e:
+    with pytest.raises(RuntimeError) as _:
         await pipeline.run_async()
-
-def test_pipeline_gracefully_terminates_if_worker_runner_fails():
-    pass
