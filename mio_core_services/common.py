@@ -13,6 +13,8 @@ from pipecat.services.whisper.stt import WhisperSTTService
 
 logger = logging.getLogger(__name__)
 
+MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
+
 
 class TerminalDashboard(BaseObserver):
     """Print the useful voice-agent activity without logging every frame."""

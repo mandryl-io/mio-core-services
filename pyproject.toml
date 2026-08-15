@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "chromadb>=1.5.9",
     "ollama>=0.6.2",
     "pipecat-ai[kokoro,local,mlx-whisper,runner,silero,whisper]>=1.6.0",
     "pydantic>=2.13.4",
