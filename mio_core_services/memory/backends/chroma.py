@@ -44,7 +44,7 @@ class ChromaVectorStore(MioVectorStore):
             ids=ids,
             documents=[document.text for document in documents],
             metadatas=[document.metadata or None for document in documents],
-            embeddings=self.embedder.embed([document.text for document in documents]),
+            embeddings=self.embed([document.text for document in documents]),
         )
 
     def search(self, query: str, limit: int = 5) -> list[SearchResult]:
@@ -52,7 +52,7 @@ class ChromaVectorStore(MioVectorStore):
         if count == 0 or limit <= 0:
             return []
         result = self.collection.query(
-            query_embeddings=self.embedder.embed([query]),
+            query_embeddings=self.embed([query]),
             n_results=min(limit, count),
             include=["documents", "metadatas", "distances"],
         )

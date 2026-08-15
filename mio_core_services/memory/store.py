@@ -2,6 +2,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from mio_core_services.memory.embeddings import MioTextEmbedder
@@ -24,6 +25,23 @@ class MioVectorStore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     embedder: MioTextEmbedder
+
+    def embed(
+        self,
+        texts: Sequence[str],
+        embedder: MioTextEmbedder | None = None,
+    ) -> np.ndarray:
+        """Embed texts with embedder, defaulting to this store's embedder."""
+        chosen = embedder or self.embedder
+        if not texts:
+            return np.empty((0, chosen.dimensions), dtype=np.float32)
+        embeddings = np.asarray(chosen.embed(list(texts)), dtype=np.float32)
+        expected = (len(texts), chosen.dimensions)
+        if embeddings.shape != expected:
+            raise ValueError(
+                f"embedder returned shape {embeddings.shape}, expected {expected}"
+            )
+        return embeddings
 
     @abstractmethod
     def add(self, documents: Sequence[Document]) -> None:
