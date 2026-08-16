@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -19,9 +20,17 @@ from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.turns.user_mute import AlwaysUserMuteStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.utils.text.base_text_filter import BaseTextFilter
 from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
+from pipecat.turns.user_mute import FirstSpeechUserMuteStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
+from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
+from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+from pipecat.turns.user_start import VADUserTurnStartStrategy
+from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
+
 
 from mio_core_services.common import TerminalDashboard
 from mio_core_services.retrieval import RetrievalEngine
@@ -65,7 +74,7 @@ class EmojiTextFilter(BaseTextFilter):
 class MioPipeline:
     """Minimal local voice pipeline: Whisper STT → Ollama LLM → Kokoro TTS.
 
-    Pass any Pipecat transport (e.g. LocalAudioTransport for mic/speakers).
+    Pass any Pipecat transport (e.g. SmallWebRTCTransport).
     Requires a running Ollama server with the chosen model pulled.
     """
 
@@ -149,9 +158,24 @@ class MioPipeline:
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
             user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(),
+                vad_analyzer=SileroVADAnalyzer(
+                    params=VADParams(
+                        confidence=0.8,
+                        start_secs=0.2,
+                        stop_secs=0.2,
+                        min_volume=0.5,
+                    )
+                ),
                 # Prevent speaker → mic feedback from interrupting TTS.
-                user_mute_strategies=[AlwaysUserMuteStrategy()],
+                user_turn_strategies=UserTurnStrategies(
+                    stop=[
+                        TurnAnalyzerUserTurnStopStrategy(
+                            turn_analyzer=LocalSmartTurnAnalyzerV3(
+                                params=SmartTurnParams(stop_secs=1.0),
+                            )
+                        )
+                    ]
+                )
             ),
         )
 

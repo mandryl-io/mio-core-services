@@ -1,14 +1,7 @@
-import asyncio
-import sys
-
 from pipecat.evals.transport import EvalTransportParams
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
-from pipecat.transports.base_transport import BaseTransport
-from pipecat.transports.local.audio import (
-    LocalAudioTransport,
-    LocalAudioTransportParams,
-)
+from pipecat.transports.base_transport import BaseTransport, TransportParams
 
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
 from mio_core_services.vector_store.chroma import ChromaVectorStore
@@ -34,9 +27,13 @@ async def _run_pipeline(transport: BaseTransport) -> None:
 
 
 async def bot(runner_args: RunnerArguments) -> None:
-    """Pipecat runner entrypoint (e.g. uv run main.py -t eval)."""
+    """Pipecat runner entrypoint (e.g. uv run main.py -t webrtc)."""
     transport_params = {
         "eval": lambda: EvalTransportParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+        ),
+        "webrtc": lambda: TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
         ),
@@ -45,21 +42,7 @@ async def bot(runner_args: RunnerArguments) -> None:
     await _run_pipeline(transport)
 
 
-async def main() -> None:
-    """Interactive local mic/speakers when no -t transport is selected."""
-    transport = LocalAudioTransport(
-        LocalAudioTransportParams(
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-        )
-    )
-    await _run_pipeline(transport)
-
-
 if __name__ == "__main__":
-    if "-t" in sys.argv or "--transport" in sys.argv:
-        from pipecat.runner.run import main as runner_main
+    from pipecat.runner.run import main as runner_main
 
-        runner_main()
-    else:
-        asyncio.run(main())
+    runner_main()
