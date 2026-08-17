@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import Mock
 
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
 from pipecat.transports.base_transport import BaseTransport
@@ -28,6 +29,7 @@ async def test_pipeline_fails_with_invalid_service():
         llm_model="foobar-invalid-model-name",
         system_instruction="You are a helpful voice assistant. Keep replies brief and conversational.",
         transport=transport,
+        vector_store=Mock(),
     )
     pipeline = MioPipeline(pipeline_config)
     with pytest.raises(RuntimeError) as _:

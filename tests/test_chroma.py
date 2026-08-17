@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import numpy as np
 import pytest
 
-from mio_core_services.memory import Document, MioTextEmbedder
+from mio_core_services.memory import Document, MioTextEmbedder, MioVectorStore
 from mio_core_services.memory.backends import ChromaVectorStore
 
 PARIS = Document(
@@ -102,3 +102,13 @@ def test_persists_across_store_instances(tmp_path):
     results = reopened.search("capital of France")
     assert results[0].document.id == "paris"
     assert reopened.count() == 1
+
+
+def test_load_selects_chroma_backend(tmp_path):
+    store = MioVectorStore.load(
+        store_name=str(tmp_path),
+        embedder=MockEmbedder(),
+    )
+    assert isinstance(store, ChromaVectorStore)
+    store.add([PARIS])
+    assert store.count() == 1
