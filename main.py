@@ -10,24 +10,27 @@ from pipecat.transports.local.audio import (
     LocalAudioTransportParams,
 )
 
+from mio_core_services.constants import DEFAULT_MIO_CHROMA_PATH, DEFAULT_SYSTEM_INSTRUCTION
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
-
-SYSTEM_INSTRUCTION = (
-    "You are a helpful voice assistant. Keep replies brief and conversational."
-)
+from mio_core_services.memory.backends.chroma import ChromaVectorStore
+from mio_core_services.memory.embeddings import SentenceTransformerEmbedder
 
 
 async def _run_pipeline(transport: BaseTransport) -> None:
     pipeline_config = MioPipelineConfig(
         llm_model="gemma4",
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=DEFAULT_SYSTEM_INSTRUCTION,
         transport=transport,
+        vector_store=ChromaVectorStore(
+            path=DEFAULT_MIO_CHROMA_PATH,
+            embedder=SentenceTransformerEmbedder(),
+        ),
     )
     await MioPipeline(pipeline_config).run_async()
 
 
 async def bot(runner_args: RunnerArguments) -> None:
-    """Pipecat runner entrypoint (e.g. ``uv run main.py -t eval``)."""
+    """Pipecat runner entrypoint (e.g. uv run main.py -t eval)."""
     transport_params = {
         "eval": lambda: EvalTransportParams(
             audio_in_enabled=True,
@@ -39,7 +42,7 @@ async def bot(runner_args: RunnerArguments) -> None:
 
 
 async def main() -> None:
-    """Interactive local mic/speakers when no ``-t`` transport is selected."""
+    """Interactive local mic/speakers when no -t transport is selected."""
     transport = LocalAudioTransport(
         LocalAudioTransportParams(
             audio_in_enabled=True,

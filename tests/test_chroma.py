@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 
+import numpy as np
 import pytest
 
 from mio_core_services.memory import Document, MioTextEmbedder
@@ -37,12 +38,14 @@ class MockEmbedder(MioTextEmbedder):
         "tokyo",
     )
 
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    def embed(self, texts: Sequence[str]) -> np.ndarray:
+        if not texts:
+            return np.empty((0, self.dimensions), dtype=np.float32)
         vectors: list[list[float]] = []
         for text in texts:
             lowered = text.lower()
             vectors.append([float(lowered.count(word)) for word in self.vocabulary])
-        return vectors
+        return np.asarray(vectors, dtype=np.float32)
 
 
 @pytest.fixture
