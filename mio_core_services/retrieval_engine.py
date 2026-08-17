@@ -1,4 +1,4 @@
-"""Retrieve and attach knowledge as a Pipecat FrameProcessor, with an embed tool."""
+"""Retrieve and attach knowledge as a Pipecat FrameProcessor."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import re
 import uuid
 from typing import Any
 
-from pipecat.adapters.schemas.function_schema import FunctionSchema
 from pipecat.frames.frames import Frame, LLMContextFrame
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
@@ -45,11 +44,11 @@ def _latest_user_text(context: LLMContext) -> str | None:
 
 
 class RetrievalEngine(FrameProcessor):
-    """Retrieve knowledge after each user turn; expose embedding as an LLM tool.
+    """Retrieve knowledge after each user turn.
 
     Place this processor after the user aggregator and before the LLM.
     Retrieval is automatic. The model judges whether retrieved context is
-    relevant. Use ``engine.tool`` to register the embed function.
+    relevant. Register ``embed`` via ``EmbedKnowledgeTool`` at composition.
     """
 
     def __init__(
@@ -67,25 +66,6 @@ class RetrievalEngine(FrameProcessor):
         self._min_words = min_words
         self._min_chars = min_chars
         self._last_query: str | None = None
-        self.tool = FunctionSchema(
-            name="embed_knowledge",
-            description=(
-                "Embed text with the knowledge-base embedder and store it for later "
-                "retrieval. Call this when the user asks you to remember a fact."
-            ),
-            properties={
-                "text": {
-                    "type": "string",
-                    "description": "The fact or passage to embed and store.",
-                },
-                "id": {
-                    "type": "string",
-                    "description": "Optional stable document id. Reusing an id upserts.",
-                },
-            },
-            required=["text"],
-            handler=self.embed,
-        )
 
     def is_retrievable(self, text: str) -> bool:
         """Return True when an utterance is complete enough to retrieve against."""
@@ -122,7 +102,7 @@ class RetrievalEngine(FrameProcessor):
             logger.debug("retrieval: skipping low-quality utterance: %r", query)
             return False
 
-        formatted = await self._retrieve(query)
+        formatted = await self.retrieve(query)
         self._last_query = query
         if not formatted:
             return False
@@ -144,7 +124,7 @@ class RetrievalEngine(FrameProcessor):
             await self.attach_context(frame.context)
         await self.push_frame(frame, direction)
 
-    async def _retrieve(self, query: str) -> str:
+    async def retrieve(self, query: str) -> str:
         try:
             results = await asyncio.to_thread(
                 self._vector_store.search, query, self._limit

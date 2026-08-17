@@ -23,6 +23,7 @@ from pipecat.workers.runner import WorkerRunner
 
 from mio_core_services.common import TerminalDashboard
 from mio_core_services.retrieval_engine import RetrievalEngine
+from mio_core_services.tools import EmbedKnowledgeTool
 from mio_core_services.utils import EmojiTextFilter
 from mio_core_services.vector_store.base import MioVectorStore
 
@@ -104,7 +105,11 @@ class MioPipeline:
             return
 
         retrieval_engine = self._create_retrieval_engine()
-        embed_tool = retrieval_engine.tool if retrieval_engine is not None else None
+        embed_tool = (
+            EmbedKnowledgeTool(retrieval_engine.embed)
+            if retrieval_engine is not None
+            else None
+        )
 
         llm = self._create_llm(embed_tool.name if embed_tool is not None else None)
         if llm is None:
