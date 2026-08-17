@@ -8,7 +8,7 @@ from mio_core_services.vector_store.embeddings import (
     SentenceTransformerEmbedder,
     _MODEL_CACHE,
 )
-from tests.test_chroma import FakeEmbedder
+from tests.test_chroma import MockEmbedder
 
 
 class _FakeSentenceTransformer:
@@ -91,8 +91,8 @@ def test_sentence_transformer_embedder_rejects_dimension_mismatch(monkeypatch):
 
 
 def test_vector_store_embed_uses_passed_embedder(tmp_path):
-    store = ChromaVectorStore(path=str(tmp_path), embedder=FakeEmbedder())
-    other = FakeEmbedder(dimensions=8)
+    store = ChromaVectorStore(path=str(tmp_path), embedder=MockEmbedder())
+    other = MockEmbedder(dimensions=8)
     embeddings = store.embed(["Paris is the capital of France."], embedder=other)
     assert embeddings.shape == (1, 8)
     assert embeddings[0, 0] == 1.0  # "paris"

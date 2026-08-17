@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from mio_core_services.vector_store.embeddings import MioTextEmbedder
+from mio_core_services.memory.embeddings import MioTextEmbedder
 
 
 class Document(BaseModel):
@@ -52,7 +52,11 @@ class MioVectorStore(BaseModel):
         """Return the closest documents, most similar first."""
 
     @abstractmethod
-    def delete(self, ids: Sequence[str]) -> None: ...
+    def delete(self, ids: Sequence[str]) -> None:
+        """Remove documents by id. Missing ids are ignored."""
 
     @abstractmethod
-    def count(self) -> int: ...
+    def count(self) -> int:
+        """Return the number of stored documents. If it is not implemented for
+        a vector store backend, returns -1."""
+        return -1

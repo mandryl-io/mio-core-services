@@ -11,8 +11,8 @@ from pipecat.transports.local.audio import (
 )
 
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
-from mio_core_services.vector_store.chroma import ChromaVectorStore
-from mio_core_services.vector_store.embeddings import SentenceTransformerEmbedder
+from mio_core_services.memory.backends.chroma import ChromaVectorStore
+from mio_core_services.memory.embeddings import SentenceTransformerEmbedder
 
 SYSTEM_INSTRUCTION = (
     "You are a helpful voice assistant. Keep replies brief and conversational."

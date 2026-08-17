@@ -2,46 +2,57 @@ from collections.abc import Sequence
 from typing import Any
 
 import chromadb
-from pydantic import PrivateAttr
+from chromadb.api import ClientAPI
+from chromadb.api.models.Collection import Collection
+from pydantic import Field, model_validator
 
-from mio_core_services.common import MIO_LOCAL_VEC_MEMORY_STORE
-from mio_core_services.vector_store.base import Document, MioVectorStore, SearchResult
+from mio_core_services.constants import MIO_LOCAL_VEC_MEMORY_STORE
+from mio_core_services.memory.store import Document, MioVectorStore, SearchResult
+
+_DEFAULT_COLLECTION_METADATA = {"hnsw:space": "cosine"}
 
 
 class ChromaVectorStore(MioVectorStore):
     path: str
+    collection_metadata: dict[str, Any] = Field(
+        default_factory=lambda: dict(_DEFAULT_COLLECTION_METADATA)
+    )
+    client: ClientAPI
+    collection: Collection
 
-    _client: Any = PrivateAttr()
-    _collection: Any = PrivateAttr()
-
-    def model_post_init(self, __context: Any) -> None:
-        self._client = chromadb.PersistentClient(path=self.path)
-        self._collection = self._client.get_or_create_collection(
+    @model_validator(mode="before")
+    @classmethod
+    def _init_chroma(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        client = data.get("client") or chromadb.PersistentClient(path=data["path"])
+        collection = data.get("collection") or client.get_or_create_collection(
             name=MIO_LOCAL_VEC_MEMORY_STORE,
             embedding_function=None,
-            metadata={"hnsw:space": "cosine"},
+            metadata=data.get("collection_metadata") or _DEFAULT_COLLECTION_METADATA,
         )
+        return {**data, "client": client, "collection": collection}
 
     def add(self, documents: Sequence[Document]) -> None:
         if not documents:
             return
         ids = [document.id for document in documents]
-        existing = self._collection.get(ids=ids)["ids"]
+        existing = self.collection.get(ids=ids)["ids"]
         if existing:
-            self._collection.delete(ids=existing)
-        self._collection.add(
+            self.collection.delete(ids=existing)
+        self.collection.add(
             ids=ids,
             documents=[document.text for document in documents],
             metadatas=[document.metadata or None for document in documents],
-            embeddings=self.embed([document.text for document in documents]),
+            embeddings=self.embedder.embed([document.text for document in documents]),
         )
 
     def search(self, query: str, limit: int = 5) -> list[SearchResult]:
-        count = self._collection.count()
+        count = self.collection.count()
         if count == 0 or limit <= 0:
             return []
-        result = self._collection.query(
-            query_embeddings=self.embed([query]),
+        result = self.collection.query(
+            query_embeddings=self.embedder.embed([query]),
             n_results=min(limit, count),
             include=["documents", "metadatas", "distances"],
         )
@@ -66,7 +77,7 @@ class ChromaVectorStore(MioVectorStore):
     def delete(self, ids: Sequence[str]) -> None:
         if not ids:
             return
-        self._collection.delete(ids=list(ids))
+        self.collection.delete(ids=list(ids))
 
     def count(self) -> int:
-        return self._collection.count()
+        return self.collection.count()
