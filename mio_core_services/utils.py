@@ -2,6 +2,10 @@ import logging
 import re
 from typing import override
 
+from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
+from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADAnalyzer, VADParams
 from pipecat.frames.frames import (
     ErrorFrame,
     LLMFullResponseEndFrame,
@@ -11,7 +15,17 @@ from pipecat.frames.frames import (
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
+from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.utils.text.base_text_filter import BaseTextFilter
+
+from mio_core_services.constants import (
+    DEFAULT_SMART_TURN_STOP_SECS,
+    DEFAULT_VAD_CONFIDENCE,
+    DEFAULT_VAD_MIN_VOLUME,
+    DEFAULT_VAD_START_SECS,
+    DEFAULT_VAD_STOP_SECS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,3 +78,27 @@ class TerminalDashboard(BaseObserver):
             logger.info("\n")
         elif isinstance(data.frame, ErrorFrame):
             logger.error("\nERROR > %s", data.frame.error)
+
+
+def create_default_vad_analyzer() -> VADAnalyzer:
+    return SileroVADAnalyzer(
+        params=VADParams(
+            confidence=DEFAULT_VAD_CONFIDENCE,
+            start_secs=DEFAULT_VAD_START_SECS,
+            stop_secs=DEFAULT_VAD_STOP_SECS,
+            min_volume=DEFAULT_VAD_MIN_VOLUME,
+        )
+    )
+
+
+def create_default_user_turn_strategies() -> UserTurnStrategies:
+    # Prevent speaker → mic feedback from interrupting TTS.
+    return UserTurnStrategies(
+        stop=[
+            TurnAnalyzerUserTurnStopStrategy(
+                turn_analyzer=LocalSmartTurnAnalyzerV3(
+                    params=SmartTurnParams(stop_secs=DEFAULT_SMART_TURN_STOP_SECS),
+                )
+            )
+        ]
+    )

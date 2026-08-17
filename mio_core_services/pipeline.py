@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.audio.vad.vad_analyzer import VADAnalyzer
 from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -20,24 +19,20 @@ from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
-from pipecat.turns.user_mute import AlwaysUserMuteStrategy
-from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
 
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
-from mio_core_services.utils import EmojiTextFilter, TerminalDashboard
+from mio_core_services.utils import (
+    EmojiTextFilter,
+    TerminalDashboard,
+    create_default_user_turn_strategies,
+    create_default_vad_analyzer,
+)
 
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
-from pipecat.utils.text.base_text_filter import BaseTextFilter
 from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
-from pipecat.turns.user_mute import FirstSpeechUserMuteStrategy
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
-from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
-from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
-from pipecat.turns.user_start import VADUserTurnStartStrategy
-from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +44,11 @@ class MioPipelineConfig:
     system_instruction: str
     transport: BaseTransport
     vector_store: MioVectorStore | None = None
+    initial_message: str | None = "Please introduce yourself to the user."
+    vad_analyzer: VADAnalyzer = field(default_factory=create_default_vad_analyzer)
+    user_turn_strategies: UserTurnStrategies = field(
+        default_factory=create_default_user_turn_strategies
+    )
 
 
 class MioPipeline:
@@ -114,7 +114,7 @@ class MioPipeline:
         return RetrievalEngine(self.pipeline_config.vector_store)
 
     async def _on_client_connected(self, transport, client) -> None:
-        if self._worker is not None:
+        if self._worker is not None and self.pipeline_config.initial_message:
             await self._worker.queue_frames([LLMRunFrame()])
 
     async def _on_client_disconnected(self, transport, client) -> None:
@@ -148,32 +148,17 @@ class MioPipeline:
         else:
             context = LLMContext()
 
-        context.add_message({
-            "role": "developer",
-            "content": "Please introduce yourself to the user."
-        })
+        if self.pipeline_config.initial_message:
+            context.add_message({
+                "role": "developer",
+                "content": self.pipeline_config.initial_message,
+            })
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
             user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(
-                    params=VADParams(
-                        confidence=0.8,
-                        start_secs=0.2,
-                        stop_secs=0.2,
-                        min_volume=0.5,
-                    )
-                ),
-                # Prevent speaker → mic feedback from interrupting TTS.
-                user_turn_strategies=UserTurnStrategies(
-                    stop=[
-                        TurnAnalyzerUserTurnStopStrategy(
-                            turn_analyzer=LocalSmartTurnAnalyzerV3(
-                                params=SmartTurnParams(stop_secs=1.0),
-                            )
-                        )
-                    ]
-                )
+                vad_analyzer=self.pipeline_config.vad_analyzer,
+                user_turn_strategies=self.pipeline_config.user_turn_strategies,
             ),
         )
 
