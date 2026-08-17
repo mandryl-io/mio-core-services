@@ -3,8 +3,8 @@ from collections.abc import Sequence
 import numpy as np
 import pytest
 
-from mio_core_services.vector_store.chroma import ChromaVectorStore
-from mio_core_services.vector_store.embeddings import (
+from mio_core_services.memory.backends.chroma import ChromaVectorStore
+from mio_core_services.memory.embeddings import (
     SentenceTransformerEmbedder,
     _MODEL_CACHE,
 )
