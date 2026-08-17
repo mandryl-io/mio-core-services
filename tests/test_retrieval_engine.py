@@ -9,7 +9,7 @@ from mio_core_services.retrieval_engine import RetrievalEngine
 from mio_core_services.vector_store.base import Document, SearchResult
 
 
-class FakeVectorStore:
+class MockVectorStore:
     def __init__(self, results: list[SearchResult] | None = None) -> None:
         self.results = results or []
         self.queries: list[tuple[str, int]] = []
@@ -33,7 +33,11 @@ def _result(text: str, doc_id: str = "doc-1") -> SearchResult:
 
 
 async def test_attach_context_skips_low_quality_utterances():
-    store = FakeVectorStore([_result("Refunds are issued within 14 days.")])
+    """
+    Test that when the retrieval engine attaches context, no changes
+    occur if there are low quality utterances.
+    """
+    store = MockVectorStore([_result("Refunds are issued within 14 days.")])
     processor = RetrievalEngine(store)
     context = LLMContext(messages=[{"role": "user", "content": "um yeah"}])
 
@@ -45,7 +49,11 @@ async def test_attach_context_skips_low_quality_utterances():
 
 
 async def test_attach_context_adds_retrieved_context():
-    store = FakeVectorStore([_result("Enterprise refunds take 14 days.")])
+    """
+    Test that when the processor is called to attach context, it performs the retrieval step
+    and adds the retrieved context to the LLMContext.
+    """
+    store = MockVectorStore([_result("Enterprise refunds take 14 days.")])
     processor = RetrievalEngine(store)
     context = LLMContext(
         messages=[
@@ -68,7 +76,11 @@ async def test_attach_context_adds_retrieved_context():
 
 
 async def test_attach_context_does_not_repeat_for_the_same_utterance():
-    store = FakeVectorStore([_result("Enterprise refunds take 14 days.")])
+    """
+    Test that when the retrieval engine is called to attach context
+    twice on the same LLMContext, it only performs the retrieval step once.
+    """
+    store = MockVectorStore([_result("Enterprise refunds take 14 days.")])
     processor = RetrievalEngine(store)
     context = LLMContext(
         messages=[
@@ -85,7 +97,11 @@ async def test_attach_context_does_not_repeat_for_the_same_utterance():
 
 
 async def test_attach_context_skips_empty_search_results():
-    store = FakeVectorStore([])
+    """
+    Test that there are no system messages added to LLMContext
+    if the vector store is empty/there are no search results.
+    """
+    store = MockVectorStore([])
     processor = RetrievalEngine(store)
     context = LLMContext(
         messages=[
@@ -104,7 +120,11 @@ async def test_attach_context_skips_empty_search_results():
 
 
 async def test_embed_stores_document():
-    store = FakeVectorStore()
+    """
+    Test that when the processor is called to embed a document, it stores the document
+    in the vector store and adds a system message to the LLMContext.
+    """
+    store = MockVectorStore()
     processor = RetrievalEngine(store)
     captured: list[Any] = []
 
@@ -125,7 +145,10 @@ async def test_embed_stores_document():
 
 
 async def test_embed_rejects_empty_text():
-    store = FakeVectorStore()
+    """
+    Test that the processor rejects empty text when called to embed a document.
+    """
+    store = MockVectorStore()
     processor = RetrievalEngine(store)
     captured: list[Any] = []
 
@@ -141,7 +164,11 @@ async def test_embed_rejects_empty_text():
 
 
 async def test_process_frame_injects_on_downstream_context():
-    store = FakeVectorStore([_result("Enterprise refunds take 14 days.")])
+    """
+    Test that when the processor is called to process a downstream frame, it performs the retrieval step
+    and adds the retrieved context to the LLMContext.
+    """
+    store = MockVectorStore([_result("Enterprise refunds take 14 days.")])
     processor = RetrievalEngine(store, enable_direct_mode=True)
     context = LLMContext(
         messages=[
@@ -165,7 +192,10 @@ async def test_process_frame_injects_on_downstream_context():
 
 
 async def test_process_frame_ignores_upstream_context():
-    store = FakeVectorStore([_result("Enterprise refunds take 14 days.")])
+    """
+    Test that when the processor is called to process an upstream frame, it does not perform the retrieval step.
+    """
+    store = MockVectorStore([_result("Enterprise refunds take 14 days.")])
     processor = RetrievalEngine(store, enable_direct_mode=True)
     context = LLMContext(
         messages=[

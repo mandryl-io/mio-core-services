@@ -23,7 +23,7 @@ PYTHON = Document(
 )
 
 
-class FakeEmbedder(MioTextEmbedder):
+class MockEmbedder(MioTextEmbedder):
     """Bag-of-words vectors so tests do not need a real embedding model."""
 
     dimensions: int = 8
@@ -48,7 +48,7 @@ class FakeEmbedder(MioTextEmbedder):
 
 @pytest.fixture
 def store(tmp_path) -> ChromaVectorStore:
-    return ChromaVectorStore(path=str(tmp_path), embedder=FakeEmbedder())
+    return ChromaVectorStore(path=str(tmp_path), embedder=MockEmbedder())
 
 
 def test_add_then_count(store: ChromaVectorStore):
@@ -94,7 +94,7 @@ def test_delete_removes_document(store: ChromaVectorStore):
 
 
 def test_persists_across_store_instances(tmp_path):
-    embedder = FakeEmbedder()
+    embedder = MockEmbedder()
     ChromaVectorStore(path=str(tmp_path), embedder=embedder).add([PARIS])
     reopened = ChromaVectorStore(path=str(tmp_path), embedder=embedder)
     results = reopened.search("capital of France")

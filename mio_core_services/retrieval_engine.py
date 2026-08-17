@@ -96,6 +96,11 @@ class RetrievalEngine(FrameProcessor):
         Returns True when a new context message was added.
         """
         query = _latest_user_text(context)
+        
+        # self._last_query is set to the query of the last user utterance that we
+        # performed a retrieval step for. This is so that if the retrieval engine
+        # is called multiple times (e.g. perhaps there could be multiple LLMContextFrames)
+        # in a pipeline, we don't want to perform the same retrieval step multiple times.
         if query is None or query == self._last_query:
             return False
         if not self.is_retrievable(query):
@@ -110,10 +115,7 @@ class RetrievalEngine(FrameProcessor):
         context.add_message(
             {
                 "role": "system",
-                "content": (
-                    "Retrieved knowledge: use it when it is relevant to the user's "
-                    f"message and ignore it otherwise.\n\n{formatted}"
-                ),
+                "content": _retrieved_knowledge_text(formatted),
             }
         )
         return True
@@ -134,6 +136,13 @@ class RetrievalEngine(FrameProcessor):
             return ""
         logger.info("retrieval: retrieved %d document(s) for %r", len(results), query)
         return _format_results(results)
+
+
+def _retrieved_knowledge_text(formatted: str) -> str:
+    return (
+        "Retrieved knowledge: use it when it is relevant to the user's "
+        f"message and ignore it otherwise.\n\n{formatted}"
+    )
 
 
 def _format_results(results: list[SearchResult]) -> str:
