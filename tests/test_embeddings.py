@@ -22,6 +22,7 @@ def test_sentence_transformer_embedder_returns_numpy_matrix(monkeypatch):
     assert embeddings.dtype == np.float32
     assert embedder.dimensions == 384
 
+
 def test_sentence_transformer_embedder_empty_texts(monkeypatch):
     monkeypatch.setattr(
         "mio_core_services.memory.embeddings._sentence_transformer",
