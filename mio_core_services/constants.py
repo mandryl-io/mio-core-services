@@ -1,3 +1,6 @@
+from pipecat.evals.transport import EvalTransportParams
+from pipecat.transports.base_transport import TransportParams
+
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
 
@@ -9,6 +12,18 @@ DEFAULT_VAD_START_SECS = 0.2
 DEFAULT_VAD_STOP_SECS = 0.2
 DEFAULT_VAD_MIN_VOLUME = 0.5
 DEFAULT_SMART_TURN_STOP_SECS = 1.0
+DEFAULT_LLM_MODEL = "gemma4"
+DEFAULT_INITIAL_MESSAGE = "Please introduce yourself to the user."
+DEFAULT_TRANSPORT_PARAMS = {
+    "webrtc": lambda: TransportParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+    ),
+    "eval": lambda: EvalTransportParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+    ),
+}
 DEFAULT_SYSTEM_PROMPT = """
 # Voice Assistant System Prompt
 

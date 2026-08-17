@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +25,31 @@ class MioVectorStore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     embedder: MioTextEmbedder
+
+    @classmethod
+    def load(
+        cls,
+        store_name: str,
+        *,
+        backend: Literal["chroma"] = "chroma",
+        embedder: MioTextEmbedder | None = None,
+        **kwargs: Any,
+    ) -> "MioVectorStore":
+        """Open a store by name, creating it if it does not exist yet.
+
+        ``backend`` defaults to Chroma and ``embedder`` defaults to
+        ``SentenceTransformerEmbedder``. For Chroma, ``store_name`` is the
+        persistent directory; an existing collection there is reused.
+        """
+        if embedder is None:
+            from mio_core_services.memory.embeddings import SentenceTransformerEmbedder
+
+            embedder = SentenceTransformerEmbedder()
+        if backend == "chroma":
+            from mio_core_services.memory.backends.chroma import ChromaVectorStore
+
+            return ChromaVectorStore(path=store_name, embedder=embedder, **kwargs)
+        raise ValueError(f"Unsupported vector store backend: {backend}")
 
     def embed(
         self,

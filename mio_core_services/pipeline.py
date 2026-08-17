@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 
 from pipecat.audio.vad.vad_analyzer import VADAnalyzer
@@ -15,12 +14,20 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.runner.types import RunnerArguments
+from pipecat.runner.utils import create_transport
 from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.workers.runner import WorkerRunner
 
+from mio_core_services.constants import (
+    DEFAULT_INITIAL_MESSAGE,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TRANSPORT_PARAMS,
+)
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
 from mio_core_services.utils import (
@@ -40,11 +47,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MioPipelineConfig:
-    llm_model: str
-    system_instruction: str
-    transport: BaseTransport
-    vector_store: MioVectorStore | None = None
-    initial_message: str | None = "Please introduce yourself to the user."
+    vector_store: MioVectorStore
+    llm_model: str = DEFAULT_LLM_MODEL
+    system_instruction: str = DEFAULT_SYSTEM_PROMPT
+    transport: BaseTransport | None = None
+    initial_message: str | None = DEFAULT_INITIAL_MESSAGE
     vad_analyzer: VADAnalyzer = field(default_factory=create_default_vad_analyzer)
     user_turn_strategies: UserTurnStrategies = field(
         default_factory=create_default_user_turn_strategies
@@ -54,18 +61,16 @@ class MioPipelineConfig:
 class MioPipeline:
     """Minimal local voice pipeline: Whisper STT → Ollama LLM → Kokoro TTS.
 
-    Pass any Pipecat transport (e.g. SmallWebRTCTransport).
-    Requires a running Ollama server with the chosen model pulled.
+    Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
+    fields default (WebRTC transport, gemma4, system prompt). Requires a
+    running Ollama server with the chosen model pulled.
     """
 
-    def __init__(
-        self,
-        pipeline_config: MioPipelineConfig,
-    ) -> None:
+    def __init__(self, pipeline_config: MioPipelineConfig) -> None:
         self.pipeline_config = pipeline_config
-        self._transport: BaseTransport = pipeline_config.transport
-        self._llm_model: str = pipeline_config.llm_model
-        self._system_instruction: str = pipeline_config.system_instruction
+        self._transport: BaseTransport | None = self.pipeline_config.transport
+        self._llm_model: str = self.pipeline_config.llm_model
+        self._system_instruction: str = self.pipeline_config.system_instruction
         self._worker: PipelineWorker | None = None
 
     def _create_stt(self) -> WhisperSTTService | None:
@@ -108,9 +113,7 @@ class MioPipeline:
             logger.exception("MioPipeline: failed to start Kokoro TTS service")
             return None
 
-    def _create_retrieval_engine(self) -> RetrievalEngine | None:
-        if self.pipeline_config.vector_store is None:
-            return None
+    def _create_retrieval_engine(self) -> RetrievalEngine:
         return RetrievalEngine(self.pipeline_config.vector_store)
 
     async def _on_client_connected(self, transport, client) -> None:
@@ -121,19 +124,32 @@ class MioPipeline:
         if self._worker is not None:
             await self._worker.cancel()
 
-    async def run_async(self) -> None:
+    async def _resolve_transport(
+        self, runner_args: RunnerArguments | None
+    ) -> BaseTransport:
+        if self._transport is not None:
+            return self._transport
+        if runner_args is None:
+            raise ValueError(
+                "runner_args is required when MioPipelineConfig.transport is unset"
+            )
+        self._transport = await create_transport(
+            runner_args, DEFAULT_TRANSPORT_PARAMS
+        )
+        return self._transport
+
+    async def run_async(
+        self, runner_args: RunnerArguments | None = None
+    ) -> None:
+        transport = await self._resolve_transport(runner_args)
         stt = self._create_stt()
         if stt is None:
             return
 
         retrieval_engine = self._create_retrieval_engine()
-        embed_tool = (
-            EmbedKnowledgeTool(retrieval_engine.embed)
-            if retrieval_engine is not None
-            else None
-        )
+        embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
 
-        llm = self._create_llm(embed_tool.name if embed_tool is not None else None)
+        llm = self._create_llm(embed_tool.name)
         if llm is None:
             return
 
@@ -141,12 +157,9 @@ class MioPipeline:
         if tts is None:
             return
 
-        if embed_tool is not None:
-            context = LLMContext(tools=[embed_tool])
-            if embed_tool.handler is not None:
-                llm.register_function(embed_tool.name, embed_tool.handler)
-        else:
-            context = LLMContext()
+        context = LLMContext(tools=[embed_tool])
+        if embed_tool.handler is not None:
+            llm.register_function(embed_tool.name, embed_tool.handler)
 
         if self.pipeline_config.initial_message:
             context.add_message({
@@ -163,20 +176,15 @@ class MioPipeline:
         )
 
         stages = [
-            self._transport.input(),
+            transport.input(),
             stt,
             user_aggregator,
+            retrieval_engine,
+            llm,
+            tts,
+            transport.output(),
+            assistant_aggregator,
         ]
-        if retrieval_engine is not None:
-            stages.append(retrieval_engine)
-        stages.extend(
-            [
-                llm,
-                tts,
-                self._transport.output(),
-                assistant_aggregator,
-            ]
-        )
         pipeline = Pipeline(stages)
 
         self._worker = PipelineWorker(
@@ -184,8 +192,8 @@ class MioPipeline:
             params=PipelineParams(),
             observers=[TerminalDashboard()],
         )
-        self._transport.add_event_handler("on_client_connected", self._on_client_connected)
-        self._transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
+        transport.add_event_handler("on_client_connected", self._on_client_connected)
+        transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
 
         runner = WorkerRunner()
         await runner.add_workers(self._worker)
