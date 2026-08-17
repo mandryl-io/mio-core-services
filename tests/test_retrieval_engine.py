@@ -1,5 +1,5 @@
-from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 from pipecat.frames.frames import LLMContextFrame, StartFrame
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -131,7 +131,7 @@ async def test_embed_stores_document():
     async def result_callback(result: Any, *, properties=None) -> None:
         captured.append(result)
 
-    params = SimpleNamespace(
+    params = Mock(
         arguments={"text": "Q3 revenue was $12M.", "id": "q3"},
         result_callback=result_callback,
     )
@@ -156,7 +156,7 @@ async def test_embed_rejects_empty_text():
         captured.append(result)
 
     await processor.embed(
-        SimpleNamespace(arguments={"text": "  "}, result_callback=result_callback)
+        Mock(arguments={"text": "  "}, result_callback=result_callback)
     )
 
     assert store.added == []
