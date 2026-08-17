@@ -21,11 +21,9 @@ from pipecat.turns.user_mute import AlwaysUserMuteStrategy
 from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
 
-from mio_core_services.common import TerminalDashboard
-from mio_core_services.retrieval_engine import RetrievalEngine
+from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
-from mio_core_services.utils import EmojiTextFilter
-from mio_core_services.vector_store.base import MioVectorStore
+from mio_core_services.utils import EmojiTextFilter, TerminalDashboard
 
 logger = logging.getLogger(__name__)
 

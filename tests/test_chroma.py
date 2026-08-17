@@ -2,9 +2,8 @@ from collections.abc import Sequence
 
 import pytest
 
-from mio_core_services.vector_store.base import Document
-from mio_core_services.vector_store.chroma import ChromaVectorStore
-from mio_core_services.vector_store.embeddings import MioTextEmbedder
+from mio_core_services.memory import Document, MioTextEmbedder
+from mio_core_services.memory.backends import ChromaVectorStore
 
 PARIS = Document(
     id="paris",

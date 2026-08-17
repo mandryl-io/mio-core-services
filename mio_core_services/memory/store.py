@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mio_core_services.vector_store.embeddings import MioTextEmbedder
+from mio_core_services.memory.embeddings import MioTextEmbedder
 
 
 class Document(BaseModel):

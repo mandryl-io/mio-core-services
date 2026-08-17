@@ -13,7 +13,7 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.llm_service import FunctionCallParams
 
-from mio_core_services.vector_store.base import Document, MioVectorStore, SearchResult
+from mio_core_services.memory.store import Document, MioVectorStore, SearchResult
 
 logger = logging.getLogger(__name__)
 
