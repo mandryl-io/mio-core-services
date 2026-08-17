@@ -1554,6 +1554,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pywebrtc-audio" },
     { name = "ruff" },
     { name = "sentence-transformers" },
     { name = "transformers" },
@@ -1568,6 +1569,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "pywebrtc-audio", specifier = ">=0.1.0" },
     { name = "ruff", specifier = ">=0.16.0" },
     { name = "sentence-transformers", specifier = ">=5.0.0" },
     { name = "transformers", specifier = ">=5.15.0" },
@@ -2930,6 +2932,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e", size = 46881, upload-time = "2026-06-04T16:18:58.647Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
+]
+
+[[package]]
+name = "pywebrtc-audio"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/61/a204f921c4e6cc4d7866308b82c5c2ad939c0e831c774515ab727b3c76e6/pywebrtc_audio-0.1.0.tar.gz", hash = "sha256:e51635e141034df088a0cc4ce9f90ffaaca6ece7015b5a24d38146f9afa72d95", size = 1746934, upload-time = "2026-05-19T04:25:36.953Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/0c/f4a865a831389e74185731edf31f2b915943f2288b7bead20a2eebcdfb12/pywebrtc_audio-0.1.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:7b485f6eb033032c372fa2f3e59baaa7bd28538c8d9c862d58128e52a8664dea", size = 401849, upload-time = "2026-05-19T04:25:26.434Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/89/52b1205dd5b0c9f0bfea2eed1062a27549e097b42ba22ad4c541a2efd32b/pywebrtc_audio-0.1.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:180db79d375e41f6ff8c082b924b128a6f3f79c93d7bc2053446eab150bf6c0e", size = 358690, upload-time = "2026-05-19T04:25:28.073Z" },
+    { url = "https://files.pythonhosted.org/packages/12/93/bbfa966cc04c627f6474d2f8406eb83d307c20f96d0f170ca8993ffe9337/pywebrtc_audio-0.1.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:26ffea3f6c06665e7ca501c8ac800a0522e46f9ca8e1a5ade57d94271c859fba", size = 412443, upload-time = "2026-05-19T04:25:29.41Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/26/1ebfe836271c4d2b6cc0d41e41f93a2c8d7fba89d0e86a2d7742516e6360/pywebrtc_audio-0.1.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c1768aa038ea51d8c35e5e59e1bb10d8fccd5c75a188c312152119586cafd19d", size = 450826, upload-time = "2026-05-19T04:25:30.767Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/05/7a71cf2ae5c5e3971f17aa36ea217d1933ea0fdb6979a8bc63df7e5f8bff/pywebrtc_audio-0.1.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:6a88f1ade674bbfb3253f58c57ca0955347b5d6b356654a9b0907e51aca9c927", size = 1348839, upload-time = "2026-05-19T04:25:32.328Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/a0/fea917b67bfc0c5ae04f4f83b223258585ad41cbe5e9d61947c66e069ead/pywebrtc_audio-0.1.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:6a4afdb3cd92ef65185ea26c8b0d743db0a8cc4d8b890d6a29e209ff3ff90be4", size = 1428680, upload-time = "2026-05-19T04:25:33.833Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/f7/c19df55667596cf3b851f2c1fbd774689b5a1565c841e5b091f35f134e48/pywebrtc_audio-0.1.0-cp313-cp313-win_amd64.whl", hash = "sha256:d4ade645f7c8c03bb26ec0b56fd140473125a303b09b186074a90700fd32ffe4", size = 311920, upload-time = "2026-05-19T04:25:35.233Z" },
 ]
 
 [[package]]

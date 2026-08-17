@@ -6,17 +6,15 @@ from pipecat.transports.base_transport import BaseTransport, TransportParams
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
 from mio_core_services.vector_store.chroma import ChromaVectorStore
 from mio_core_services.vector_store.embeddings import SentenceTransformerEmbedder
+from mio_core_services.constants import DEFAULT_SYSTEM_PROMPT
 
-SYSTEM_INSTRUCTION = (
-    "You are a helpful voice assistant. Keep replies brief and conversational."
-)
 MIO_CHROMA_PATH = "./mio-chroma"
 
 
 async def _run_pipeline(transport: BaseTransport) -> None:
     pipeline_config = MioPipelineConfig(
         llm_model="gemma4",
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=DEFAULT_SYSTEM_PROMPT,
         transport=transport,
         vector_store=ChromaVectorStore(
             path=MIO_CHROMA_PATH,

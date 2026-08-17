@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -35,7 +36,7 @@ from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 from mio_core_services.common import TerminalDashboard
 from mio_core_services.retrieval import RetrievalEngine
 from mio_core_services.vector_store.base import MioVectorStore
-
+from mio_core_services.constants import DEFAULT_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
@@ -86,6 +87,7 @@ class MioPipeline:
         self._transport: BaseTransport = pipeline_config.transport
         self._llm_model: str = pipeline_config.llm_model
         self._system_instruction: str = pipeline_config.system_instruction
+        self._worker: PipelineWorker | None = None
 
     def _create_stt(self) -> WhisperSTTService | None:
         try:
@@ -132,6 +134,14 @@ class MioPipeline:
             return None
         return RetrievalEngine(self.pipeline_config.vector_store)
 
+    async def _on_client_connected(self, transport, client) -> None:
+        if self._worker is not None:
+            await self._worker.queue_frames([LLMRunFrame()])
+
+    async def _on_client_disconnected(self, transport, client) -> None:
+        if self._worker is not None:
+            await self._worker.cancel()
+
     async def run_async(self) -> None:
         stt = self._create_stt()
         if stt is None:
@@ -154,6 +164,11 @@ class MioPipeline:
                 llm.register_function(embed_tool.name, embed_tool.handler)
         else:
             context = LLMContext()
+
+        context.add_message({
+            "role": "developer",
+            "content": "Please introduce yourself to the user."
+        })
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
@@ -196,16 +211,14 @@ class MioPipeline:
         )
         pipeline = Pipeline(stages)
 
-        worker = PipelineWorker(
+        self._worker = PipelineWorker(
             pipeline,
             params=PipelineParams(),
             observers=[TerminalDashboard()],
         )
-
-        @self._transport.event_handler("on_client_disconnected")
-        async def on_client_disconnected(transport, client):
-            await worker.cancel()
+        self._transport.add_event_handler("on_client_connected", self._on_client_connected)
+        self._transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
 
         runner = WorkerRunner()
-        await runner.add_workers(worker)
+        await runner.add_workers(self._worker)
         await runner.run()
