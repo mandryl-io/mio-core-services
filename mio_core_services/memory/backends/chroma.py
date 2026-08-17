@@ -7,7 +7,7 @@ from chromadb.api.models.Collection import Collection
 from pydantic import Field, model_validator
 
 from mio_core_services.constants import MIO_LOCAL_VEC_MEMORY_STORE
-from mio_core_services.vector_store.base import Document, MioVectorStore, SearchResult
+from mio_core_services.memory.store import Document, MioVectorStore, SearchResult
 
 _DEFAULT_COLLECTION_METADATA = {"hnsw:space": "cosine"}
 

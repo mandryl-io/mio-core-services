@@ -1,6 +1,19 @@
+import logging
 import re
+from typing import override
 
+from pipecat.frames.frames import (
+    ErrorFrame,
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
+    TranscriptionFrame,
+)
+from pipecat.observers.base_observer import BaseObserver, FramePushed
+from pipecat.services.ollama.llm import OLLamaLLMService
+from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.utils.text.base_text_filter import BaseTextFilter
+
+logger = logging.getLogger(__name__)
 
 
 class EmojiTextFilter(BaseTextFilter):
@@ -26,3 +39,28 @@ class EmojiTextFilter(BaseTextFilter):
         text = self._SHORTCODE.sub("", text)
         text = self._EMOJI.sub("", text)
         return self._MULTI_SPACE.sub(" ", text)
+
+
+class TerminalDashboard(BaseObserver):
+    """Print the useful voice-agent activity without logging every frame."""
+
+    @override
+    async def on_pipeline_started(self) -> None:
+        print("\n🎙  Voice pipeline ready — listening (Ctrl+C to stop)\n")
+
+    @override
+    async def on_push_frame(self, data: FramePushed) -> None:
+        if isinstance(data.frame, TranscriptionFrame) and isinstance(
+            data.source, WhisperSTTService
+        ):
+            logger.info("YOU   > %s", data.frame.text)
+        elif isinstance(data.frame, LLMTextFrame) and isinstance(
+            data.source, OLLamaLLMService
+        ):
+            logger.info(data.frame.text)
+        elif isinstance(data.frame, LLMFullResponseEndFrame) and isinstance(
+            data.source, OLLamaLLMService
+        ):
+            logger.info("\n")
+        elif isinstance(data.frame, ErrorFrame):
+            logger.error("\nERROR > %s", data.frame.error)

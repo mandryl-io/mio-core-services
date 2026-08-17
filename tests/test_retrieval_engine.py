@@ -5,8 +5,7 @@ from pipecat.frames.frames import LLMContextFrame, StartFrame
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 
-from mio_core_services.retrieval_engine import RetrievalEngine
-from mio_core_services.vector_store.base import Document, SearchResult
+from mio_core_services.memory import Document, RetrievalEngine, SearchResult
 
 
 class MockVectorStore:
