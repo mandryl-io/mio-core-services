@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -19,14 +21,22 @@ from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.turns.user_mute import AlwaysUserMuteStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.utils.text.base_text_filter import BaseTextFilter
 from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
+from pipecat.turns.user_mute import FirstSpeechUserMuteStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
+from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
+from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+from pipecat.turns.user_start import VADUserTurnStartStrategy
+from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
+
 
 from mio_core_services.common import TerminalDashboard
 from mio_core_services.retrieval import RetrievalEngine
 from mio_core_services.vector_store.base import MioVectorStore
-
+from mio_core_services.constants import DEFAULT_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +75,7 @@ class EmojiTextFilter(BaseTextFilter):
 class MioPipeline:
     """Minimal local voice pipeline: Whisper STT → Ollama LLM → Kokoro TTS.
 
-    Pass any Pipecat transport (e.g. LocalAudioTransport for mic/speakers).
+    Pass any Pipecat transport (e.g. SmallWebRTCTransport).
     Requires a running Ollama server with the chosen model pulled.
     """
 
@@ -77,6 +87,7 @@ class MioPipeline:
         self._transport: BaseTransport = pipeline_config.transport
         self._llm_model: str = pipeline_config.llm_model
         self._system_instruction: str = pipeline_config.system_instruction
+        self._worker: PipelineWorker | None = None
 
     def _create_stt(self) -> WhisperSTTService | None:
         try:
@@ -123,6 +134,14 @@ class MioPipeline:
             return None
         return RetrievalEngine(self.pipeline_config.vector_store)
 
+    async def _on_client_connected(self, transport, client) -> None:
+        if self._worker is not None:
+            await self._worker.queue_frames([LLMRunFrame()])
+
+    async def _on_client_disconnected(self, transport, client) -> None:
+        if self._worker is not None:
+            await self._worker.cancel()
+
     async def run_async(self) -> None:
         stt = self._create_stt()
         if stt is None:
@@ -146,12 +165,32 @@ class MioPipeline:
         else:
             context = LLMContext()
 
+        context.add_message({
+            "role": "developer",
+            "content": "Please introduce yourself to the user."
+        })
+
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
             user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(),
+                vad_analyzer=SileroVADAnalyzer(
+                    params=VADParams(
+                        confidence=0.8,
+                        start_secs=0.2,
+                        stop_secs=0.2,
+                        min_volume=0.5,
+                    )
+                ),
                 # Prevent speaker → mic feedback from interrupting TTS.
-                user_mute_strategies=[AlwaysUserMuteStrategy()],
+                user_turn_strategies=UserTurnStrategies(
+                    stop=[
+                        TurnAnalyzerUserTurnStopStrategy(
+                            turn_analyzer=LocalSmartTurnAnalyzerV3(
+                                params=SmartTurnParams(stop_secs=1.0),
+                            )
+                        )
+                    ]
+                )
             ),
         )
 
@@ -172,16 +211,14 @@ class MioPipeline:
         )
         pipeline = Pipeline(stages)
 
-        worker = PipelineWorker(
+        self._worker = PipelineWorker(
             pipeline,
             params=PipelineParams(),
             observers=[TerminalDashboard()],
         )
-
-        @self._transport.event_handler("on_client_disconnected")
-        async def on_client_disconnected(transport, client):
-            await worker.cancel()
+        self._transport.add_event_handler("on_client_connected", self._on_client_connected)
+        self._transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
 
         runner = WorkerRunner()
-        await runner.add_workers(worker)
+        await runner.add_workers(self._worker)
         await runner.run()
