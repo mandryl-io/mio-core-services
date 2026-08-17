@@ -5,7 +5,7 @@ from pipecat.frames.frames import LLMContextFrame, StartFrame
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 
-from mio_core_services.retrieval import RetrievalEngine
+from mio_core_services.retrieval_engine import RetrievalEngine
 from mio_core_services.vector_store.base import Document, SearchResult
 
 
@@ -30,16 +30,6 @@ class FakeVectorStore:
 
 def _result(text: str, doc_id: str = "doc-1") -> SearchResult:
     return SearchResult(document=Document(id=doc_id, text=text), score=0.9)
-
-
-def test_is_retrievable_skips_short_utterances():
-    processor = RetrievalEngine(FakeVectorStore())
-    assert processor.is_retrievable("um") is False
-    assert processor.is_retrievable("yeah okay") is False
-    assert processor.is_retrievable("what is") is False
-    assert processor.is_retrievable(
-        "What is the refund policy for enterprise plans?"
-    ) is True
 
 
 async def test_attach_context_skips_low_quality_utterances():

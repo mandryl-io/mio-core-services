@@ -34,7 +34,9 @@ class MioVectorStore(BaseModel):
         """Return the closest documents, most similar first."""
 
     @abstractmethod
-    def delete(self, ids: Sequence[str]) -> None: ...
+    def delete(self, ids: Sequence[str]) -> None:
+        """Remove documents by id. Missing ids are ignored."""
 
     @abstractmethod
-    def count(self) -> int: ...
+    def count(self) -> int:
+        """Return the number of stored documents."""
