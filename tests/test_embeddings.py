@@ -1,7 +1,5 @@
 from unittest.mock import Mock
-from collections.abc import Sequence
 
-import numpy as np
 import pytest
 
 from mio_core_services.memory.backends.chroma import ChromaVectorStore
