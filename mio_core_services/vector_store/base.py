@@ -39,4 +39,6 @@ class MioVectorStore(BaseModel):
 
     @abstractmethod
     def count(self) -> int:
-        """Return the number of stored documents."""
+        """Return the number of stored documents. If it is not implemented for
+        a vector store backend, returns -1."""
+        return -1

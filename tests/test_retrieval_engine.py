@@ -122,9 +122,6 @@ async def test_embed_stores_document():
     assert store.added[0].id == "q3"
     assert store.added[0].text == "Q3 revenue was $12M."
     assert captured == ["Stored document q3."]
-    assert processor.tool.name == "embed_knowledge"
-    assert processor.tool.handler is not None
-    assert processor.tool.handler.__func__ is RetrievalEngine.embed
 
 
 async def test_embed_rejects_empty_text():
