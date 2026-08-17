@@ -1,11 +1,26 @@
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 
 from mio_core_services.memory.backends.chroma import ChromaVectorStore
 from mio_core_services.memory.embeddings import SentenceTransformerEmbedder
 from tests.test_chroma import MockEmbedder
 
+
+def test_sentence_transformer_embedder_returns_numpy_matrix(monkeypatch):
+    model = Mock()
+    model.encode.return_value = np.ones((2, 384), dtype=np.float32)
+    monkeypatch.setattr(
+        "mio_core_services.memory.embeddings._sentence_transformer",
+        lambda model_name: model,
+    )
+    embedder = SentenceTransformerEmbedder()
+    embeddings = embedder.embed(["one", "two"])
+    assert isinstance(embeddings, np.ndarray)
+    assert embeddings.shape == (2, 384)
+    assert embeddings.dtype == np.float32
+    assert embedder.dimensions == 384
 
 def test_sentence_transformer_embedder_empty_texts(monkeypatch):
     monkeypatch.setattr(
