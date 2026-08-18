@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Literal
 
 from pipecat.audio.vad.vad_analyzer import VADAnalyzer
 from pipecat.frames.frames import LLMRunFrame
@@ -20,8 +23,6 @@ from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
-from pipecat.workers.runner import WorkerRunner
-
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
@@ -58,6 +59,15 @@ class MioPipelineConfig:
     )
 
 
+class MioPipelineState(StrEnum):
+    IDLE = "idle"
+    LOADING = "loading"
+    STARTING = "starting"
+    READY = "ready"
+    FAILED = "failed"
+    FINISHED = "finished"
+
+
 class MioPipeline:
     """Minimal local voice pipeline: Whisper STT → Ollama LLM → Kokoro TTS.
 
@@ -72,6 +82,41 @@ class MioPipeline:
         self._llm_model: str = self.pipeline_config.llm_model
         self._system_instruction: str = self.pipeline_config.system_instruction
         self._worker: PipelineWorker | None = None
+        self._state = MioPipelineState.IDLE
+        self._loading_service: Literal["stt", "llm", "tts"] | None = None
+        self._ready_event = asyncio.Event()
+
+    @property
+    def state(self) -> MioPipelineState:
+        return self._state
+
+    @property
+    def loading_service(self) -> Literal["stt", "llm", "tts"] | None:
+        return self._loading_service
+
+    def _set_state(self, state: MioPipelineState) -> None:
+        self._state = state
+        if state is not MioPipelineState.LOADING:
+            self._loading_service = None
+        if state in (
+            MioPipelineState.READY,
+            MioPipelineState.FAILED,
+            MioPipelineState.FINISHED,
+        ):
+            self._ready_event.set()
+
+    async def wait_until_ready(self, timeout: float | None = None) -> None:
+        try:
+            await asyncio.wait_for(self._ready_event.wait(), timeout=timeout)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"timed out waiting for pipeline to become ready (state={self._state.value})"
+            ) from exc
+        if self._state is MioPipelineState.READY:
+            return
+        raise RuntimeError(
+            f"pipeline failed to become ready (state={self._state.value})"
+        )
 
     def _create_stt(self) -> WhisperSTTService | None:
         try:
@@ -142,19 +187,27 @@ class MioPipeline:
         self, runner_args: RunnerArguments | None = None
     ) -> None:
         transport = await self._resolve_transport(runner_args)
+
+        self._set_state(MioPipelineState.LOADING)
+        self._loading_service = "stt"
         stt = self._create_stt()
         if stt is None:
+            self._set_state(MioPipelineState.FAILED)
             return
 
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
 
+        self._loading_service = "llm"
         llm = self._create_llm(embed_tool.name)
         if llm is None:
+            self._set_state(MioPipelineState.FAILED)
             return
 
+        self._loading_service = "tts"
         tts = self._create_tts()
         if tts is None:
+            self._set_state(MioPipelineState.FAILED)
             return
 
         context = LLMContext(tools=[embed_tool])
@@ -192,6 +245,20 @@ class MioPipeline:
             params=PipelineParams(),
             observers=[TerminalDashboard()],
         )
+        self._set_state(MioPipelineState.STARTING)
+
+        @self._worker.event_handler("on_pipeline_started")
+        async def on_pipeline_started(worker, frame):
+            self._set_state(MioPipelineState.READY)
+
+        @self._worker.event_handler("on_pipeline_error")
+        async def on_pipeline_error(worker, frame):
+            self._set_state(MioPipelineState.FAILED)
+
+        @self._worker.event_handler("on_pipeline_finished")
+        async def on_pipeline_finished(worker, frame):
+            self._set_state(MioPipelineState.FINISHED)
+
         transport.add_event_handler("on_client_connected", self._on_client_connected)
         transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
 
