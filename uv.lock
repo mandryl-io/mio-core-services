@@ -1060,8 +1060,6 @@ wheels = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "google-crc32c"
 version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1080,7 +1078,6 @@ wheels = [
 ]
 
 [[package]]
->>>>>>> 4-performance-improvements-to-useragent-turn-handling-and-interactions
 name = "googleapis-common-protos"
 version = "1.75.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1243,8 +1240,6 @@ wheels = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "ifaddr"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1254,7 +1249,6 @@ wheels = [
 ]
 
 [[package]]
->>>>>>> 4-performance-improvements-to-useragent-turn-handling-and-interactions
 name = "importlib-resources"
 version = "7.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2141,8 +2135,6 @@ wheels = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "opencv-python-headless"
 version = "4.14.0.94"
 source = { registry = "https://pypi.org/simple" }
@@ -2162,7 +2154,6 @@ wheels = [
 ]
 
 [[package]]
->>>>>>> 4-performance-improvements-to-useragent-turn-handling-and-interactions
 name = "opentelemetry-api"
 version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2679,8 +2670,6 @@ wheels = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "pycparser"
 version = "3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2690,7 +2679,6 @@ wheels = [
 ]
 
 [[package]]
->>>>>>> 4-performance-improvements-to-useragent-turn-handling-and-interactions
 name = "pydantic"
 version = "2.13.4"
 source = { registry = "https://pypi.org/simple" }

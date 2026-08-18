@@ -32,6 +32,7 @@ from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
 from mio_core_services.utils import (
     EmojiTextFilter,
+    ServiceMemoryTracker,
     TerminalDashboard,
     create_default_user_turn_strategies,
     create_default_vad_analyzer,
@@ -142,18 +143,26 @@ class MioPipeline:
         self, runner_args: RunnerArguments | None = None
     ) -> None:
         transport = await self._resolve_transport(runner_args)
+        mem = ServiceMemoryTracker()
+
         stt = self._create_stt()
+        mem.mark("whisper")
         if stt is None:
+            mem.log()
             return
 
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
 
         llm = self._create_llm(embed_tool.name)
+        mem.mark("ollama")
         if llm is None:
+            mem.log()
             return
 
         tts = self._create_tts()
+        mem.mark("kokoro")
+        mem.log()
         if tts is None:
             return
 
@@ -189,7 +198,9 @@ class MioPipeline:
 
         self._worker = PipelineWorker(
             pipeline,
-            params=PipelineParams(),
+            params=PipelineParams(
+                enable_metrics=True,
+            ),
             observers=[TerminalDashboard()],
         )
         transport.add_event_handler("on_client_connected", self._on_client_connected)

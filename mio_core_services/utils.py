@@ -1,5 +1,7 @@
 import logging
 import re
+import resource
+import sys
 from typing import override
 
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
@@ -17,6 +19,7 @@ from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
+from loguru import logger as loguru_logger
 from pipecat.utils.text.base_text_filter import BaseTextFilter
 
 from mio_core_services.constants import (
@@ -28,6 +31,43 @@ from mio_core_services.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _rss_bytes() -> int:
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform != "darwin":
+        rss *= 1024
+    return rss
+
+
+def _format_bytes(n: int) -> str:
+    for unit, denom in (("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024)):
+        if n >= denom:
+            return f"{n / denom:.1f} {unit}"
+    return f"{n} B"
+
+
+class ServiceMemoryTracker:
+    """Record RSS added by each service as it starts, then log a summary."""
+
+    def __init__(self) -> None:
+        self._last = _rss_bytes()
+        self._usage: list[tuple[str, int]] = []
+
+    def mark(self, name: str) -> None:
+        now = _rss_bytes()
+        self._usage.append((name, max(0, now - self._last)))
+        self._last = now
+
+    def log(self) -> None:
+        parts = "  ".join(f"{name}={_format_bytes(n)}" for name, n in self._usage)
+        combined = sum(n for _, n in self._usage)
+        message = (
+            f"service memory  {parts}  combined={_format_bytes(combined)}  "
+            f"process={_format_bytes(_rss_bytes())}"
+        )
+        loguru_logger.info("MioPipeline: {}", message)
+        print(f"\n{message}\n")
 
 
 class EmojiTextFilter(BaseTextFilter):
