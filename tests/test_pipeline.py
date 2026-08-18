@@ -1,36 +1,63 @@
-import pytest
 from unittest.mock import Mock
 
-from mio_core_services.pipeline import MioPipeline, MioPipelineConfig
-from pipecat.transports.base_transport import BaseTransport
+import pytest
+
+from mio_core_services.pipeline import MioPipeline, MioPipelineConfig, MioPipelineState
 from tests.test_utils import MockTransport
 
-"""
-Things we might want to test:
 
-1. Does the pipeline terminate gracefully if any of the models/services cannot start up properly
-(e.g. vRAM usage is too high, or the model is not available)?
-
-2. Does the pipeline terminate gracefully if the worker runner is not working properly?
-"""
-
-
-@pytest.fixture
-async def pipeline(transport: BaseTransport) -> MioPipeline:
-    return MioPipeline(transport)
-
-async def test_pipeline_fails_with_invalid_service():
-    """
-    Tests that the pipeline fails if the LLM service cannot start up properly
-    by passing an invalid service name to the pipeline config.
-    """
-    transport = MockTransport()
-    pipeline_config = MioPipelineConfig(
-        llm_model="foobar-invalid-model-name",
-        system_instruction="You are a helpful voice assistant. Keep replies brief and conversational.",
-        transport=transport,
-        vector_store=Mock(),
+def _pipeline() -> MioPipeline:
+    return MioPipeline(
+        MioPipelineConfig(
+            vector_store=Mock(),
+            transport=MockTransport(),
+            vad_analyzer=Mock(),
+            user_turn_strategies=Mock(),
+        )
     )
-    pipeline = MioPipeline(pipeline_config)
-    with pytest.raises(RuntimeError) as _:
-        await pipeline.run_async()
+
+
+class MockWorker:
+    def __init__(self, *args, **kwargs) -> None:
+        self.handlers = {}
+
+    def event_handler(self, name: str):
+        def decorator(fn):
+            self.handlers[name] = fn
+            return fn
+
+        return decorator
+
+
+class MockRunner:
+    async def add_workers(self, *args, **kwargs) -> None:
+        return None
+
+    async def run(self) -> None:
+        return None
+
+
+async def test_constructor_failure_sets_failed():
+    pipeline = _pipeline()
+    pipeline._create_stt = lambda: None
+    await pipeline.run_async()
+    assert pipeline.state is MioPipelineState.FAILED
+    with pytest.raises(RuntimeError):
+        await pipeline.wait_until_ready(timeout=0.1)
+
+
+async def test_pipeline_started_sets_ready(monkeypatch):
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    pipeline = _pipeline()
+    pipeline._create_stt = lambda: Mock()
+    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_tts = lambda: Mock()
+    await pipeline.run_async()
+    await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
+    assert pipeline.state is MioPipelineState.READY
+    await pipeline.wait_until_ready(timeout=0.1)
