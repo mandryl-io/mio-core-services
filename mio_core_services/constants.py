@@ -13,6 +13,9 @@ DEFAULT_VAD_STOP_SECS = 0.2
 DEFAULT_VAD_MIN_VOLUME = 0.5
 DEFAULT_SMART_TURN_STOP_SECS = 1.0
 DEFAULT_LLM_MODEL = "gpt-4.1"
+DEFAULT_STT_MODEL = "gpt-4o-transcribe"
+DEFAULT_TTS_MODEL = "gpt-4o-mini-tts"
+DEFAULT_TTS_VOICE = "alloy"
 DEFAULT_INITIAL_MESSAGE = "Please introduce yourself to the user."
 DEFAULT_TRANSPORT_PARAMS = {
     "webrtc": lambda: TransportParams(

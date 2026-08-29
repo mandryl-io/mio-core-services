@@ -20,15 +20,18 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
-from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.whisper.stt import WhisperSTTService
+from pipecat.services.openai.stt import OpenAISTTService
+from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_STT_MODEL,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TRANSPORT_PARAMS,
+    DEFAULT_TTS_MODEL,
+    DEFAULT_TTS_VOICE,
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
@@ -70,7 +73,7 @@ class MioPipelineState(StrEnum):
 
 
 class MioPipeline:
-    """Minimal local voice pipeline: Whisper STT → OpenAI LLM → Kokoro TTS.
+    """Voice pipeline: OpenAI STT → OpenAI LLM → OpenAI TTS.
 
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
     fields default (WebRTC transport, gpt-4.1, system prompt). Requires
@@ -119,20 +122,25 @@ class MioPipeline:
             f"pipeline failed to become ready (state={self._state.value})"
         )
 
-    def _create_stt(self) -> WhisperSTTService | None:
+    def _openai_api_key(self) -> str:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        return api_key
+
+    def _create_stt(self) -> OpenAISTTService | None:
         try:
-            return WhisperSTTService(
-                settings=WhisperSTTService.Settings(model="base"),
+            return OpenAISTTService(
+                api_key=self._openai_api_key(),
+                settings=OpenAISTTService.Settings(model=DEFAULT_STT_MODEL),
             )
         except Exception:
-            logger.exception("MioPipeline: failed to start Whisper STT service")
+            logger.exception("MioPipeline: failed to start OpenAI STT service")
             return None
 
     def _create_llm(self, embed_tool_name: str | None = None) -> OpenAILLMService | None:
         try:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY environment variable is not set")
+            api_key = self._openai_api_key()
             system_instruction = self._system_instruction
             if embed_tool_name is not None:
                 system_instruction += (
@@ -151,16 +159,20 @@ class MioPipeline:
             logger.exception("MioPipeline: failed to start OpenAI LLM service")
             return None
 
-    def _create_tts(self) -> KokoroTTSService | None:
+    def _create_tts(self) -> OpenAITTSService | None:
         try:
             md_filter = MarkdownTextFilter()
             emoji_filter = EmojiTextFilter()
-            return KokoroTTSService(
-                settings=KokoroTTSService.Settings(voice="af_heart"),
+            return OpenAITTSService(
+                api_key=self._openai_api_key(),
+                settings=OpenAITTSService.Settings(
+                    model=DEFAULT_TTS_MODEL,
+                    voice=DEFAULT_TTS_VOICE,
+                ),
                 text_filters=[md_filter, emoji_filter],
             )
         except Exception:
-            logger.exception("MioPipeline: failed to start Kokoro TTS service")
+            logger.exception("MioPipeline: failed to start OpenAI TTS service")
             return None
 
     def _create_retrieval_engine(self) -> RetrievalEngine:

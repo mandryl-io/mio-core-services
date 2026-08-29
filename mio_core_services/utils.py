@@ -14,7 +14,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.whisper.stt import WhisperSTTService
+from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.utils.text.base_text_filter import BaseTextFilter
@@ -65,7 +65,7 @@ class TerminalDashboard(BaseObserver):
     @override
     async def on_push_frame(self, data: FramePushed) -> None:
         if isinstance(data.frame, TranscriptionFrame) and isinstance(
-            data.source, WhisperSTTService
+            data.source, OpenAISTTService
         ):
             logger.info("YOU   > %s", data.frame.text)
         elif isinstance(data.frame, LLMTextFrame) and isinstance(
