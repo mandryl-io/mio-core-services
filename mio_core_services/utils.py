@@ -13,7 +13,7 @@ from pipecat.frames.frames import (
     TranscriptionFrame,
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
-from pipecat.services.ollama.llm import OLLamaLLMService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
@@ -69,11 +69,11 @@ class TerminalDashboard(BaseObserver):
         ):
             logger.info("YOU   > %s", data.frame.text)
         elif isinstance(data.frame, LLMTextFrame) and isinstance(
-            data.source, OLLamaLLMService
+            data.source, OpenAILLMService
         ):
             logger.info(data.frame.text)
         elif isinstance(data.frame, LLMFullResponseEndFrame) and isinstance(
-            data.source, OLLamaLLMService
+            data.source, OpenAILLMService
         ):
             logger.info("\n")
         elif isinstance(data.frame, ErrorFrame):

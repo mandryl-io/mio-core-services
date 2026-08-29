@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
@@ -20,7 +21,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
 from pipecat.services.kokoro.tts import KokoroTTSService
-from pipecat.services.ollama.llm import OLLamaLLMService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transports.base_transport import BaseTransport
 from mio_core_services.constants import (
@@ -69,11 +70,11 @@ class MioPipelineState(StrEnum):
 
 
 class MioPipeline:
-    """Minimal local voice pipeline: Whisper STT → Ollama LLM → Kokoro TTS.
+    """Minimal local voice pipeline: Whisper STT → OpenAI LLM → Kokoro TTS.
 
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
-    fields default (WebRTC transport, gemma4, system prompt). Requires a
-    running Ollama server with the chosen model pulled.
+    fields default (WebRTC transport, gpt-4.1, system prompt). Requires
+    ``OPENAI_API_KEY`` in the environment.
     """
 
     def __init__(self, pipeline_config: MioPipelineConfig) -> None:
@@ -127,8 +128,11 @@ class MioPipeline:
             logger.exception("MioPipeline: failed to start Whisper STT service")
             return None
 
-    def _create_llm(self, embed_tool_name: str | None = None) -> OLLamaLLMService | None:
+    def _create_llm(self, embed_tool_name: str | None = None) -> OpenAILLMService | None:
         try:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY environment variable is not set")
             system_instruction = self._system_instruction
             if embed_tool_name is not None:
                 system_instruction += (
@@ -136,14 +140,15 @@ class MioPipeline:
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
                 )
-            return OLLamaLLMService(
-                settings=OLLamaLLMService.Settings(
+            return OpenAILLMService(
+                api_key=api_key,
+                settings=OpenAILLMService.Settings(
                     model=self._llm_model,
                     system_instruction=system_instruction,
                 ),
             )
         except Exception:
-            logger.exception("MioPipeline: failed to start Ollama LLM service")
+            logger.exception("MioPipeline: failed to start OpenAI LLM service")
             return None
 
     def _create_tts(self) -> KokoroTTSService | None:
