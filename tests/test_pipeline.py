@@ -20,6 +20,7 @@ def _pipeline() -> MioPipeline:
 class MockWorker:
     def __init__(self, *args, **kwargs) -> None:
         self.handlers = {}
+        self.queued_frames = []
 
     def event_handler(self, name: str):
         def decorator(fn):
@@ -27,6 +28,9 @@ class MockWorker:
             return fn
 
         return decorator
+
+    async def queue_frames(self, frames) -> None:
+        self.queued_frames.extend(frames)
 
 
 class MockRunner:
@@ -61,3 +65,21 @@ async def test_pipeline_started_sets_ready(monkeypatch):
     await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
     assert pipeline.state is MioPipelineState.READY
     await pipeline.wait_until_ready(timeout=0.1)
+
+
+async def test_client_connected_speaks_greeting_without_llm(monkeypatch):
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    pipeline = _pipeline()
+    pipeline._create_stt = lambda: Mock()
+    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_tts = lambda: Mock()
+    await pipeline.run_async()
+    await pipeline._on_client_connected(None, None)
+    frames = pipeline._worker.queued_frames
+    assert len(frames) == 1
+    assert frames[0].text == pipeline.pipeline_config.initial_message

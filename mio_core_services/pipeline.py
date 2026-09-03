@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Literal
 
 from pipecat.audio.vad.vad_analyzer import VADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -56,6 +56,7 @@ class MioPipelineConfig:
     llm_model: str = DEFAULT_LLM_MODEL
     system_instruction: str = DEFAULT_SYSTEM_PROMPT
     transport: BaseTransport | None = None
+    # Spoken on connect via TTS so the greeting does not wait on the LLM.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
     vad_analyzer: VADAnalyzer = field(default_factory=create_default_vad_analyzer)
     user_turn_strategies: UserTurnStrategies = field(
@@ -76,7 +77,7 @@ class MioPipeline:
     """Voice pipeline: OpenAI STT → OpenAI LLM → OpenAI TTS.
 
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
-    fields default (WebRTC transport, gpt-4.1, system prompt). Requires
+    fields default (WebRTC transport, gpt-5.4-mini, system prompt). Requires
     ``OPENAI_API_KEY`` in the environment.
     """
 
@@ -180,7 +181,9 @@ class MioPipeline:
 
     async def _on_client_connected(self, transport, client) -> None:
         if self._worker is not None and self.pipeline_config.initial_message:
-            await self._worker.queue_frames([LLMRunFrame()])
+            await self._worker.queue_frames([
+                TTSSpeakFrame(text=self.pipeline_config.initial_message)
+            ])
 
     async def _on_client_disconnected(self, transport, client) -> None:
         if self._worker is not None:
@@ -230,12 +233,6 @@ class MioPipeline:
         context = LLMContext(tools=[embed_tool])
         if embed_tool.handler is not None:
             llm.register_function(embed_tool.name, embed_tool.handler)
-
-        if self.pipeline_config.initial_message:
-            context.add_message({
-                "role": "developer",
-                "content": self.pipeline_config.initial_message,
-            })
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
