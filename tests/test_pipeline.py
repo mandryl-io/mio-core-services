@@ -1,6 +1,9 @@
+import json
 from unittest.mock import Mock
 
 import pytest
+from pipecat.frames.frames import LLMRunFrame
+from pipecat.services.openai.realtime.events import parse_server_event
 
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig, MioPipelineState
 from tests.test_utils import MockTransport
@@ -43,7 +46,7 @@ class MockRunner:
 
 async def test_constructor_failure_sets_failed():
     pipeline = _pipeline()
-    pipeline._create_stt = lambda: None
+    pipeline._create_llm = lambda embed_tool_name=None: None
     await pipeline.run_async()
     assert pipeline.state is MioPipelineState.FAILED
     with pytest.raises(RuntimeError):
@@ -58,16 +61,14 @@ async def test_pipeline_started_sets_ready(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_stt = lambda: Mock()
     pipeline._create_llm = lambda embed_tool_name=None: Mock()
-    pipeline._create_tts = lambda: Mock()
     await pipeline.run_async()
     await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
     assert pipeline.state is MioPipelineState.READY
     await pipeline.wait_until_ready(timeout=0.1)
 
 
-async def test_client_connected_speaks_greeting_without_llm(monkeypatch):
+async def test_client_connected_kicks_realtime_greeting(monkeypatch):
     monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
     monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
     monkeypatch.setattr(
@@ -75,11 +76,32 @@ async def test_client_connected_speaks_greeting_without_llm(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_stt = lambda: Mock()
     pipeline._create_llm = lambda embed_tool_name=None: Mock()
-    pipeline._create_tts = lambda: Mock()
     await pipeline.run_async()
     await pipeline._on_client_connected(None, None)
     frames = pipeline._worker.queued_frames
     assert len(frames) == 1
-    assert frames[0].text == pipeline.pipeline_config.initial_message
+    assert isinstance(frames[0], LLMRunFrame)
+
+
+def test_session_updated_accepts_live_transcribe_languages():
+    payload = {
+        "type": "session.updated",
+        "event_id": "event_test",
+        "session": {
+            "type": "realtime",
+            "model": "gpt-realtime-2",
+            "audio": {
+                "input": {
+                    "transcription": {
+                        "model": "gpt-live-transcribe",
+                        "language": None,
+                        "languages": None,
+                        "prompt": None,
+                    }
+                }
+            },
+        },
+    }
+    event = parse_server_event(json.dumps(payload))
+    assert event.session.audio.input.transcription.model == "gpt-live-transcribe"

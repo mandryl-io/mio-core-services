@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Literal
 
 from pipecat.audio.vad.vad_analyzer import VADAnalyzer
-from pipecat.frames.frames import TTSSpeakFrame
+from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -20,34 +20,50 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
-from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.openai.stt import OpenAISTTService
-from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.openai.realtime.events import (
+    AudioConfiguration,
+    AudioInput,
+    AudioOutput,
+    InputAudioNoiseReduction,
+    InputAudioTranscription,
+    SessionProperties,
+)
+from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.transports.base_transport import BaseTransport
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
-    DEFAULT_STT_MODEL,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TRANSCRIPTION_MODEL,
     DEFAULT_TRANSPORT_PARAMS,
-    DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
 from mio_core_services.utils import (
-    EmojiTextFilter,
     TerminalDashboard,
     create_default_user_turn_strategies,
     create_default_vad_analyzer,
 )
 
-from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 from pipecat.workers.runner import WorkerRunner
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 
 
 logger = logging.getLogger(__name__)
+
+# Pipecat's InputAudioTranscription.__init__ only accepts model/language/prompt.
+# gpt-live-transcribe session echoes also include `languages`, which crashes
+# parse_server_event on session.updated.
+_original_input_audio_transcription_init = InputAudioTranscription.__init__
+
+
+def _init_input_audio_transcription(self, *args, **kwargs) -> None:
+    kwargs.pop("languages", None)
+    _original_input_audio_transcription_init(self, *args, **kwargs)
+
+
+InputAudioTranscription.__init__ = _init_input_audio_transcription
 
 
 @dataclass
@@ -56,7 +72,8 @@ class MioPipelineConfig:
     llm_model: str = DEFAULT_LLM_MODEL
     system_instruction: str = DEFAULT_SYSTEM_PROMPT
     transport: BaseTransport | None = None
-    # Spoken on connect via TTS so the greeting does not wait on the LLM.
+    # Spoken on connect by kicking the realtime model so the greeting
+    # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
     vad_analyzer: VADAnalyzer = field(default_factory=create_default_vad_analyzer)
     user_turn_strategies: UserTurnStrategies = field(
@@ -74,11 +91,11 @@ class MioPipelineState(StrEnum):
 
 
 class MioPipeline:
-    """Voice pipeline: OpenAI STT → OpenAI LLM → OpenAI TTS.
+    """Voice pipeline over a single OpenAI Realtime connection.
 
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
-    fields default (WebRTC transport, gpt-5.4-mini, system prompt). Requires
-    ``OPENAI_API_KEY`` in the environment.
+    fields default (WebRTC transport, gpt-realtime-2 with gpt-live-transcribe
+    input transcription, system prompt). Requires ``OPENAI_API_KEY``.
     """
 
     def __init__(self, pipeline_config: MioPipelineConfig) -> None:
@@ -88,7 +105,7 @@ class MioPipeline:
         self._system_instruction: str = self.pipeline_config.system_instruction
         self._worker: PipelineWorker | None = None
         self._state = MioPipelineState.IDLE
-        self._loading_service: Literal["stt", "llm", "tts"] | None = None
+        self._loading_service: Literal["llm"] | None = None
         self._ready_event = asyncio.Event()
 
     @property
@@ -96,7 +113,7 @@ class MioPipeline:
         return self._state
 
     @property
-    def loading_service(self) -> Literal["stt", "llm", "tts"] | None:
+    def loading_service(self) -> Literal["llm"] | None:
         return self._loading_service
 
     def _set_state(self, state: MioPipelineState) -> None:
@@ -129,17 +146,9 @@ class MioPipeline:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
         return api_key
 
-    def _create_stt(self) -> OpenAISTTService | None:
-        try:
-            return OpenAISTTService(
-                api_key=self._openai_api_key(),
-                settings=OpenAISTTService.Settings(model=DEFAULT_STT_MODEL),
-            )
-        except Exception:
-            logger.exception("MioPipeline: failed to start OpenAI STT service")
-            return None
-
-    def _create_llm(self, embed_tool_name: str | None = None) -> OpenAILLMService | None:
+    def _create_llm(
+        self, embed_tool_name: str | None = None
+    ) -> OpenAIRealtimeLLMService | None:
         try:
             api_key = self._openai_api_key()
             system_instruction = self._system_instruction
@@ -149,31 +158,29 @@ class MioPipeline:
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
                 )
-            return OpenAILLMService(
+            return OpenAIRealtimeLLMService(
                 api_key=api_key,
-                settings=OpenAILLMService.Settings(
+                settings=OpenAIRealtimeLLMService.Settings(
                     model=self._llm_model,
                     system_instruction=system_instruction,
+                    session_properties=SessionProperties(
+                        audio=AudioConfiguration(
+                            input=AudioInput(
+                                transcription=InputAudioTranscription(
+                                    model=DEFAULT_TRANSCRIPTION_MODEL,
+                                ),
+                                turn_detection=False,
+                                noise_reduction=InputAudioNoiseReduction(
+                                    type="near_field"
+                                ),
+                            ),
+                            output=AudioOutput(voice=DEFAULT_TTS_VOICE),
+                        ),
+                    ),
                 ),
             )
         except Exception:
-            logger.exception("MioPipeline: failed to start OpenAI LLM service")
-            return None
-
-    def _create_tts(self) -> OpenAITTSService | None:
-        try:
-            md_filter = MarkdownTextFilter()
-            emoji_filter = EmojiTextFilter()
-            return OpenAITTSService(
-                api_key=self._openai_api_key(),
-                settings=OpenAITTSService.Settings(
-                    model=DEFAULT_TTS_MODEL,
-                    voice=DEFAULT_TTS_VOICE,
-                ),
-                text_filters=[md_filter, emoji_filter],
-            )
-        except Exception:
-            logger.exception("MioPipeline: failed to start OpenAI TTS service")
+            logger.exception("MioPipeline: failed to start OpenAI Realtime service")
             return None
 
     def _create_retrieval_engine(self) -> RetrievalEngine:
@@ -181,9 +188,7 @@ class MioPipeline:
 
     async def _on_client_connected(self, transport, client) -> None:
         if self._worker is not None and self.pipeline_config.initial_message:
-            await self._worker.queue_frames([
-                TTSSpeakFrame(text=self.pipeline_config.initial_message)
-            ])
+            await self._worker.queue_frames([LLMRunFrame()])
 
     async def _on_client_disconnected(self, transport, client) -> None:
         if self._worker is not None:
@@ -209,12 +214,6 @@ class MioPipeline:
         transport = await self._resolve_transport(runner_args)
 
         self._set_state(MioPipelineState.LOADING)
-        self._loading_service = "stt"
-        stt = self._create_stt()
-        if stt is None:
-            self._set_state(MioPipelineState.FAILED)
-            return
-
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
 
@@ -224,15 +223,19 @@ class MioPipeline:
             self._set_state(MioPipelineState.FAILED)
             return
 
-        self._loading_service = "tts"
-        tts = self._create_tts()
-        if tts is None:
-            self._set_state(MioPipelineState.FAILED)
-            return
-
-        context = LLMContext(tools=[embed_tool])
-        if embed_tool.handler is not None:
-            llm.register_function(embed_tool.name, embed_tool.handler)
+        messages = []
+        if self.pipeline_config.initial_message:
+            messages.append(
+                {
+                    "role": "developer",
+                    "content": (
+                        "Greet the user by saying exactly this, then wait for "
+                        "them to speak: "
+                        f"{self.pipeline_config.initial_message}"
+                    ),
+                }
+            )
+        context = LLMContext(messages, tools=[embed_tool])
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
@@ -240,15 +243,14 @@ class MioPipeline:
                 vad_analyzer=self.pipeline_config.vad_analyzer,
                 user_turn_strategies=self.pipeline_config.user_turn_strategies,
             ),
+            realtime_service_mode=True,
         )
 
         stages = [
             transport.input(),
-            stt,
             user_aggregator,
             retrieval_engine,
             llm,
-            tts,
             transport.output(),
             assistant_aggregator,
         ]
