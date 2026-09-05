@@ -13,8 +13,7 @@ from pipecat.frames.frames import (
     TranscriptionFrame,
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
-from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.openai.stt import OpenAISTTService
+from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.utils.text.base_text_filter import BaseTextFilter
@@ -65,15 +64,15 @@ class TerminalDashboard(BaseObserver):
     @override
     async def on_push_frame(self, data: FramePushed) -> None:
         if isinstance(data.frame, TranscriptionFrame) and isinstance(
-            data.source, OpenAISTTService
+            data.source, OpenAIRealtimeLLMService
         ):
             logger.info("YOU   > %s", data.frame.text)
         elif isinstance(data.frame, LLMTextFrame) and isinstance(
-            data.source, OpenAILLMService
+            data.source, OpenAIRealtimeLLMService
         ):
             logger.info(data.frame.text)
         elif isinstance(data.frame, LLMFullResponseEndFrame) and isinstance(
-            data.source, OpenAILLMService
+            data.source, OpenAIRealtimeLLMService
         ):
             logger.info("\n")
         elif isinstance(data.frame, ErrorFrame):
