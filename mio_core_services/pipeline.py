@@ -147,7 +147,10 @@ class MioPipeline:
                 system_instruction += (
                     " Retrieved knowledge may be attached to each turn; use it when "
                     "it is relevant and ignore it otherwise. "
-                    f"Call {embed_tool_name} when the user asks you to remember a fact."
+                    f"Call {embed_tool_name} on your own when the user shares something "
+                    "personal worth remembering — stories, feelings, people they care "
+                    "about, preferences, or facts about themselves. Do not wait for "
+                    "them to ask."
                 )
             return OpenAILLMService(
                 api_key=api_key,
