@@ -144,15 +144,11 @@ class STS3215Bus:
         raise last_error or TimeoutError(f"No read reply from servo {servo_id}")
 
     def ping(self, servo_id: int) -> bool:
-        packet = ping_packet(servo_id)
-        self._serial.reset_input_buffer()
-        self._serial.write(packet)
-        self._serial.flush()
+        # Voltage warning (error=0x01) makes INST_PING's reply identical to TX.
         try:
-            self._recv(servo_id, packet, 0)
+            return self._read(servo_id, ADDR_ID, 1)[0] == servo_id
         except TimeoutError:
             return False
-        return True
 
     def set_id(self, new_id: int, current_id: int = BROADCAST_ID) -> None:
         if not 1 <= new_id <= 253:
@@ -160,8 +156,12 @@ class STS3215Bus:
         if current_id != BROADCAST_ID and not 1 <= current_id <= 253:
             raise ValueError(f"current_id must be 1–253 or {BROADCAST_ID}, got {current_id}")
         self.enable_torque(current_id, False)
+        time.sleep(0.02)
         self._write(current_id, ADDR_LOCK, bytes([0]))
+        time.sleep(0.05)
         self._write(current_id, ADDR_ID, bytes([new_id]))
+        # ACK comes from the new ID; EEPROM needs a moment before it replies.
+        time.sleep(0.15)
         self._write(new_id, ADDR_LOCK, bytes([1]))
 
     def enable_torque(self, servo_id: int = 1, enabled: bool = True) -> None:
@@ -185,19 +185,15 @@ class STS3215Bus:
     ) -> None:
         if not 0 <= position <= POSITION_MAX:
             raise ValueError(f"position must be 0–{POSITION_MAX}, got {position}")
-        payload = bytes(
-            [
-                acc,
-                position & 0xFF,
-                (position >> 8) & 0xFF,
-                0,
-                0,
-                speed & 0xFF,
-                (speed >> 8) & 0xFF,
-            ]
-        )
-        self._write(servo_id, ADDR_ACC, payload)
+        # Block-writing ACC..SPEED (with time=0) updates goal but does not move.
         self.enable_torque(servo_id, True)
+        self._write(servo_id, ADDR_ACC, bytes([acc]))
+        self._write(
+            servo_id,
+            ADDR_GOAL_SPEED,
+            bytes([speed & 0xFF, (speed >> 8) & 0xFF]),
+        )
+        self.set_goal(position, servo_id=servo_id)
 
     def set_goal(self, position: int, servo_id: int = 1) -> None:
         self.set_goals({servo_id: position})

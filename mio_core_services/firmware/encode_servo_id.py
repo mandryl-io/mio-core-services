@@ -24,14 +24,28 @@ def main() -> None:
 
     print(f"Encoding servo {args.current_id} -> {args.new_id} on {args.port}")
     with STS3215Bus(args.port) as bus:
+        if args.current_id != BROADCAST_ID and not bus.ping(args.current_id):
+            raise SystemExit(
+                f"No reply from current ID {args.current_id} on {args.port} "
+                "before writing. Check the ID, external power, and jumper B."
+            )
         bus.set_id(args.new_id, current_id=args.current_id)
         time.sleep(0.05)
-        if not bus.ping(args.new_id):
+        if bus.ping(args.new_id):
+            print(f"Servo now responds as ID {args.new_id}")
+            return
+        if (
+            args.current_id != BROADCAST_ID
+            and args.current_id != args.new_id
+            and bus.ping(args.current_id)
+        ):
             raise SystemExit(
-                f"Wrote ID {args.new_id} but ping failed. "
-                "Check external power, jumper B, and that only one servo is connected."
+                f"ID write did not take: servo still responds as {args.current_id}."
             )
-    print(f"Servo now responds as ID {args.new_id}")
+        raise SystemExit(
+            f"Wrote ID {args.new_id} but it did not reply. "
+            "Check external power, jumper B, and that only one servo is connected."
+        )
 
 
 if __name__ == "__main__":
