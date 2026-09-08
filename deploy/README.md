@@ -4,7 +4,17 @@
 range-of-motion sweep, then continuous idle behaviour. It needs no network, no
 SSH session and nobody logged in.
 
-## Install
+## One-shot install
+
+```bash
+bash deploy/apply-and-reboot.sh
+```
+
+Stops anything on the bus, pulls, restores the reviewed register baseline on
+both servos, writes and verifies the hard travel limits, enables the service,
+and reboots.
+
+## Install manually
 
 On the Pi, from the repository:
 

@@ -12,6 +12,7 @@ INST_READ = 0x02
 INST_WRITE = 0x03
 INST_SYNC_WRITE = 0x83
 ADDR_ID = 5
+ADDR_RESPONSE_LEVEL = 8  # 1 = reply to reads only, 2 = reply to writes too
 # Hard travel limits enforced inside the servo, in position mode only.
 ADDR_MIN_ANGLE_LIMIT = 9  # two bytes
 ADDR_MAX_ANGLE_LIMIT = 11  # two bytes
@@ -24,6 +25,11 @@ ADDR_I_COEFFICIENT = 23
 ADDR_MIN_STARTUP_FORCE = 24  # two bytes
 ADDR_CW_DEAD_ZONE = 26
 ADDR_CCW_DEAD_ZONE = 27
+# Overload protection: exceed ADDR_OVERLOAD_TORQUE for ADDR_PROTECTION_TIME and
+# output collapses to ADDR_PROTECTION_TORQUE until the load drops.
+ADDR_PROTECTION_TORQUE = 34
+ADDR_PROTECTION_TIME = 35
+ADDR_OVERLOAD_TORQUE = 36
 ADDR_TORQUE_ENABLE = 40
 ADDR_ACC = 41
 ADDR_GOAL_POSITION = 42
@@ -35,6 +41,7 @@ ADDR_PRESENT_LOAD = 60
 ADDR_PRESENT_VOLTAGE = 62  # tenths of a volt
 ADDR_PRESENT_TEMPERATURE = 63
 ADDR_STATUS = 65
+ADDR_PRESENT_CURRENT = 69
 
 # Waveshare Bus Servo Driver HAT (A) in ESP32 transparent-transmission
 # mode: the Pi drives GPIO 14/15 at 115200 and the ESP32 forwards to the

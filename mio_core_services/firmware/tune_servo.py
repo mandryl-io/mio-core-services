@@ -6,6 +6,10 @@ import argparse
 
 from mio_core_services.firmware.sts3215 import (
     ADDR_CCW_DEAD_ZONE,
+    ADDR_OVERLOAD_TORQUE,
+    ADDR_PROTECTION_TIME,
+    ADDR_PROTECTION_TORQUE,
+    ADDR_RESPONSE_LEVEL,
     ADDR_CW_DEAD_ZONE,
     ADDR_D_COEFFICIENT,
     ADDR_I_COEFFICIENT,
@@ -26,26 +30,33 @@ REGISTERS = {
     "ccw-dead-zone": (ADDR_CCW_DEAD_ZONE, 1, 1),
 }
 
-# A servo that buzzes while holding is correcting errors smaller than it can
-# usefully resolve. Widening the dead zone and easing P settles it. Punch is
-# the minimum drive applied to any correction, so a raised one makes every
-# small correction overshoot -- back at factory zero it cannot.
-CALM_PRESET = {"cw-dead-zone": 4, "ccw-dead-zone": 4, "p": 24, "punch": 0}
+# Registers worth seeing but not worth writing from here.
+READ_ONLY = {
+    "response-level": (ADDR_RESPONSE_LEVEL, 1, 1),
+    "protection-torque": (ADDR_PROTECTION_TORQUE, 1, 20),
+    "protection-time": (ADDR_PROTECTION_TIME, 1, 200),
+    "overload-torque": (ADDR_OVERLOAD_TORQUE, 1, 80),
+}
 
-# For a loaded axis that still hunts: a wider band, softer correction, and more
-# damping. Coarser holding is the trade.
-DAMPED_PRESET = {
-    "cw-dead-zone": 10,
-    "ccw-dead-zone": 10,
-    "p": 16,
-    "d": 48,
-    "punch": 0,
+# The servo closes its loop across a gear train with 10-15 counts of lost
+# motion. A dead zone of 4 sits inside that band, so the loop keeps correcting
+# where it has no mechanical authority; and punch is the minimum torque needed
+# to break static friction, so lowering it lets error build until the load
+# breaks free and shoots through the backlash. Both were changed the wrong way.
+# This is the recommended starting point to tune damping from.
+BASELINE_PRESET = {
+    "p": 32,
+    "i": 0,
+    "d": 32,
+    "punch": 16,
+    "cw-dead-zone": 1,
+    "ccw-dead-zone": 1,
 }
 
 
 def _show(bus: STS3215Bus, servo_id: int) -> None:
     print(f"servo {servo_id}:")
-    for name, (address, width, factory) in REGISTERS.items():
+    for name, (address, width, factory) in {**REGISTERS, **READ_ONLY}.items():
         value = bus.read_word(servo_id, address) if width == 2 else bus.read_byte(
             servo_id, address
         )
@@ -66,14 +77,10 @@ def main() -> None:
         help="Set both dead zones at once. Wider means less hunting, coarser holding.",
     )
     parser.add_argument(
-        "--calm",
+        "--baseline",
         action="store_true",
-        help=f"Apply the anti-jitter preset: {CALM_PRESET}.",
-    )
-    parser.add_argument(
-        "--damped",
-        action="store_true",
-        help=f"Stronger preset for an axis that still hunts: {DAMPED_PRESET}.",
+        help=f"Restore the recommended starting point: {BASELINE_PRESET}. "
+        "Tune --d upward from here.",
     )
     parser.add_argument(
         "--factory",
@@ -83,10 +90,8 @@ def main() -> None:
     args = parser.parse_args()
 
     wanted: dict[str, int] = {}
-    if args.calm:
-        wanted.update(CALM_PRESET)
-    if args.damped:
-        wanted.update(DAMPED_PRESET)
+    if args.baseline:
+        wanted.update(BASELINE_PRESET)
     if args.factory:
         wanted.update({name: spec[2] for name, spec in REGISTERS.items()})
     if args.dead_zone is not None:
@@ -100,7 +105,7 @@ def main() -> None:
     with STS3215Bus(args.port, args.baudrate) as bus:
         if not wanted:
             _show(bus, args.id)
-            print("\nNothing changed. Pass --calm, --dead-zone N, or a register flag.")
+            print("\nNothing changed. Pass --baseline, --d N, or another register flag.")
             return
 
         print("before:")

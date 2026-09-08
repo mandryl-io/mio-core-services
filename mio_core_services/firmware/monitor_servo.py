@@ -10,11 +10,14 @@ Run this while jogging the joint that misbehaves.
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
 import time
 
 from mio_core_services.firmware.sts3215 import (
+    ADDR_PRESENT_CURRENT,
     ADDR_PRESENT_LOAD,
+    ADDR_PRESENT_SPEED,
     ADDR_STATUS,
     ADDR_PRESENT_TEMPERATURE,
     ADDR_PRESENT_VOLTAGE,
@@ -58,6 +61,11 @@ def main() -> None:
     parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument("--seconds", type=float, default=30.0)
     parser.add_argument("--interval", type=float, default=0.1)
+    parser.add_argument(
+        "--csv",
+        help="Write every sample here: position, speed, load, current, "
+        "volts, temperature and the latched status bitmask.",
+    )
     args = parser.parse_args()
 
     print(f"Sampling servo {args.id} for {args.seconds:g}s. Move the joint now.\n")
@@ -68,6 +76,13 @@ def main() -> None:
 
     voltages: list[float] = []
     faults: list[str] = []
+    handle = open(args.csv, "w", newline="") if args.csv else None
+    writer = csv.writer(handle) if handle else None
+    if writer is not None:
+        writer.writerow(
+            ["seconds", "position", "speed", "load", "current",
+             "volts", "temp", "status"]
+        )
     start = time.monotonic()
     with STS3215Bus(args.port, args.baudrate) as bus:
         while time.monotonic() - start < args.seconds:
@@ -76,12 +91,19 @@ def main() -> None:
                 load = _signed_load(bus.read_word(args.id, ADDR_PRESENT_LOAD))
                 temp = bus.read_byte(args.id, ADDR_PRESENT_TEMPERATURE)
                 status = bus.read_byte(args.id, ADDR_STATUS)
+                speed = _signed_load(bus.read_word(args.id, ADDR_PRESENT_SPEED))
+                current = bus.read_word(args.id, ADDR_PRESENT_CURRENT)
                 position = bus.position(servo_id=args.id)
             except TimeoutError:
                 print("  (no reply)")
                 continue
             voltages.append(volts)
             elapsed = time.monotonic() - start
+            if writer is not None:
+                writer.writerow(
+                    [f"{elapsed:.3f}", position, speed, load, current,
+                     f"{volts:.1f}", temp, status]
+                )
             if status:
                 faults.append(_faults(status))
             print(
@@ -89,6 +111,10 @@ def main() -> None:
                 f"{_faults(status):>10}  {position:8d}"
             )
             time.sleep(args.interval)
+
+    if handle is not None:
+        handle.close()
+        print(f"\nWrote {args.csv}")
 
     if not voltages:
         raise SystemExit("No samples returned.")

@@ -154,7 +154,7 @@ def _breathe(
             servo_id: axes[servo_id].clamp(position + random.randint(-6, 6))
             for servo_id, position in resting.items()
         }
-        _travel(bus, axes, drift, 90, stopping, acc=10, timeout=1.5)
+        _travel(bus, axes, drift, 350, stopping, acc=20, timeout=1.5)
 
 
 @dataclass(frozen=True)
@@ -208,7 +208,7 @@ def _glance(yaw: Axis, pitch: Axis) -> list[Step]:
                 yaw.servo_id: yaw.sample(0.3, floor=0.12),
                 pitch.servo_id: pitch.sample(0.28, floor=0.14),
             },
-            random.randint(520, 780),
+            random.randint(950, 1450),
             45,
             random.uniform(2.2, 5.0),
             True,
@@ -224,7 +224,7 @@ def _look(yaw: Axis, pitch: Axis) -> list[Step]:
                 yaw.servo_id: yaw.sample(0.62, floor=0.3),
                 pitch.servo_id: pitch.sample(0.45, floor=0.2),
             },
-            random.randint(900, 1250),
+            random.randint(1600, 2200),
             75,
             random.uniform(1.6, 4.0),
             True,
@@ -244,7 +244,7 @@ def _tilt(yaw: Axis, pitch: Axis) -> list[Step]:
                 ),
                 pitch.servo_id: pitch.sample(0.4, floor=0.25),
             },
-            random.randint(380, 560),
+            random.randint(750, 1150),
             30,
             random.uniform(3.5, 8.0),
             True,
@@ -257,12 +257,12 @@ def _nod(yaw: Axis, pitch: Axis) -> list[Step]:
     down = pitch.clamp(pitch.zero - round((pitch.zero - pitch.low) * 0.7))
     up = pitch.clamp(pitch.zero + round((pitch.high - pitch.zero) * 0.3))
     return [
-        Step({pitch.servo_id: down}, 1100, 90, 0.14),
-        Step({pitch.servo_id: up}, 1100, 90, 0.14),
+        Step({pitch.servo_id: down}, 1800, 100, 0.12),
+        Step({pitch.servo_id: up}, 1800, 100, 0.12),
         Step(
             {pitch.servo_id: pitch.sample(0.2, floor=0.1)},
-            600,
-            45,
+            1000,
+            50,
             random.uniform(2.0, 4.5),
             True,
         ),
@@ -277,7 +277,7 @@ def _rest(yaw: Axis, pitch: Axis) -> list[Step]:
                 yaw.servo_id: yaw.sample(0.18, floor=0.08),
                 pitch.servo_id: pitch.sample(0.22, floor=0.12),
             },
-            random.randint(300, 460),
+            random.randint(650, 950),
             25,
             random.uniform(5.0, 11.0),
             True,
@@ -342,7 +342,7 @@ def main() -> None:
     parser.add_argument(
         "--sweep-speed",
         type=int,
-        default=180,
+        default=400,
         help="Speed for the startup range-of-motion sweep.",
     )
     parser.add_argument(

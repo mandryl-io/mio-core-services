@@ -330,14 +330,30 @@ Inspect the current values:
 uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1
 ```
 
-Apply the anti-jitter preset (dead zone 4 either way, P 24):
+Restore the reviewed baseline — P 32, I 0, D 32, punch 16, dead zone 1:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --calm
+uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --baseline
 ```
 
-Or set them individually, e.g. `--dead-zone 6`, `--p 20`. `--factory` restores
-the defaults for every register the tool knows.
+Then tune damping upward from there, measuring at each step:
+
+```bash
+for d in 32 40 48 64; do
+  uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --d $d
+  uv run --frozen python -m mio_core_services.firmware.jitter_test --id 1
+done
+```
+
+**Widening the dead zone and lowering punch makes this worse, not better.** The
+servo closes its loop across a gear train with 10-15 counts of lost motion, so
+a dead zone of 4 sits inside a band where the loop has no mechanical authority,
+and punch is the minimum torque needed to break static friction — lowering it
+lets error build until the load breaks free and shoots through the backlash.
+Leave `I` at 0; integral action on top of backlash winds up and hunts worse.
+
+`--factory` restores the manufacturer defaults for every register the tool
+knows.
 
 These are **EEPROM writes and persist across power cycles**. The tool disables
 torque and releases the EEPROM lock around the write, prints before and after
