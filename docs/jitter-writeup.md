@@ -160,11 +160,41 @@ torque is cut entirely, restored on the next move.
 | Per-move acceleration (15–90) rather than flat 50 | Marginal |
 | Raised speed (312 → 900–1200 ticks/s) | Marginal |
 | Cut torque when stationary | Removes hold buzz, motion still rough |
-| `P` 32 → 24, dead zone 1 → 4 | Marginal |
-| `punch` 16 → 0 | Applied late; effect unconfirmed |
+| `P` 32 → 24, dead zone 1 → 4 | Marginal. Since reverted |
+| `punch` 16 → 0 | **Never actually applied.** Reads confirm punch stayed at 16 |
 
-Current EEPROM state on axis 1: `P=24, I=0, D=32, punch=0, dead zone 4/4`,
-angle limits written to 637/3711 (addresses 9 and 11).
+## Corrections after review
+
+Two claims in the first version of this document were wrong.
+
+**Punch was never lowered.** It was added to a preset but the preset was not
+re-run, and register reads before and after show 16 throughout. So the
+"lowering punch let error build until the load broke free" mechanism, while
+sound, was not what was happening here.
+
+**Axis 2 had `D = 0`.** Reading the registers across both servos found the
+pitch axis running with the derivative term at zero against a factory default
+of 32 — no damping at all on the axis carrying the head. Provenance unknown; it
+predates this work. Now set to 32.
+
+Current EEPROM state, both axes: `P=32, I=0, D=32, punch=16, dead zone 1/1`.
+Response level is 1 on both, so writes emit no status packet and discarding the
+input buffer after a write is harmless. Overload protection is at defaults:
+protection torque 20, protection time 200, overload torque 80. Angle limits are
+written and verified at 637/3711 and 1450/1890 (addresses 9 and 11), mode 0.
+
+## Measurements taken since
+
+`jitter_test` holds a position and samples it with torque on, then off.
+
+| Hold position | Driven peak-to-peak | Limp peak-to-peak |
+| --- | --- | --- |
+| 1658 (centre) | 0 ticks | 0 ticks |
+
+A reading of 565 ticks at position 3000 was an artefact: the tool waited a
+fixed two seconds before sampling, and the servo needed over three to get
+there, so it measured the journey. It now polls for arrival first. Voltage
+held at 12.2 V with no latched faults, but still only at idle.
 
 ## Measurements
 
