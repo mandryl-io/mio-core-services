@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Self
 
 from mio_core_services.firmware.sts3215 import (
+    DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     POSITION_MAX,
     STS3215Bus,
@@ -115,7 +116,8 @@ def _read_position(bus: STS3215Bus, servo_id: int, port: str) -> int:
     except TimeoutError:
         raise SystemExit(
             f"No reply from servo {servo_id} on {port}. "
-            "Check external power, jumper B, and the servo ID."
+            "Check external power and the servo ID. For a Waveshare HAT (A) "
+            "on /dev/serial0, use ESP32 transparent-transmission mode at 115200 baud."
         )
 
 
@@ -146,10 +148,7 @@ def _limits_from_travel(zero: int, text: str) -> tuple[int, int]:
 
 
 def _prompt_limits(zero: int) -> tuple[int, int]:
-    prompt = (
-        "± travel from zero in ticks "
-        "(300 or +400/-200, empty = no extra limit): "
-    )
+    prompt = "± travel from zero in ticks (300 or +400/-200, empty = no extra limit): "
     while True:
         try:
             text = input(prompt)
@@ -225,6 +224,7 @@ def main() -> None:
         help="Servo IDs to zero, in order.",
     )
     parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument(
         "-o",
         "--output",
@@ -252,7 +252,7 @@ def main() -> None:
         raise SystemExit("Need a TTY for arrow-key teleop.")
 
     records: dict[str, dict[str, int]] = {}
-    with STS3215Bus(args.port) as bus:
+    with STS3215Bus(args.port, args.baudrate) as bus:
         for servo_id in args.ids:
             with RawTerminal() as terminal:
                 recorded = _teleop_until_zero(
