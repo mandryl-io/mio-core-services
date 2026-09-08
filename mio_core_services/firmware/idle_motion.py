@@ -63,15 +63,27 @@ class Axis:
 
 
 class Stopping:
-    """Latches on SIGINT or SIGTERM so systemd can stop this cleanly."""
+    """Latches on SIGINT or SIGTERM so Ctrl+C and systemd both stop cleanly."""
 
     def __init__(self) -> None:
         self.requested = False
+        self._signals = 0
         signal.signal(signal.SIGINT, self._handle)
         signal.signal(signal.SIGTERM, self._handle)
 
     def _handle(self, *_: object) -> None:
+        self._signals += 1
         self.requested = True
+        if self._signals == 1:
+            print("\nStopping. Centring...", flush=True)
+        else:
+            # Second Ctrl+C: give up on centring and get out now.
+            print("\nForced stop.", flush=True)
+            raise KeyboardInterrupt
+
+    def clear(self) -> None:
+        """Allow the centring move to run after a stop was requested."""
+        self.requested = False
 
 
 def _travel(
@@ -98,6 +110,8 @@ def _travel(
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline and not stopping.requested:
         time.sleep(POLL)
+        if stopping.requested:
+            return
         try:
             if all(
                 abs(bus.position(servo_id=servo_id) - goal) <= ARRIVE_TOLERANCE
@@ -366,9 +380,18 @@ def main() -> None:
                 else:
                     _dwell(step.dwell, stopping)
 
-        print(f"\nStopping after {moves} behaviours. Returning to centre.")
-        stopping.requested = False  # let the last move finish
-        _travel(bus, axes, {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero}, 300, stopping)
+        print(f"\nStopped after {moves} behaviours.")
+        stopping.clear()  # let the centring move run
+        _travel(
+            bus,
+            axes,
+            {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero},
+            1100,
+            stopping,
+            acc=80,
+            timeout=4.0,
+        )
+        print("Centred.")
 
 
 if __name__ == "__main__":
