@@ -149,7 +149,23 @@ def main() -> None:
         help="Park at the centre without the full-travel swing first.",
     )
     parser.add_argument("--step", type=int, default=4, help="Ticks per jog tick.")
-    parser.add_argument("--jog-speed", type=int, default=800)
+    parser.add_argument(
+        "--jog-speed",
+        type=int,
+        help="Tracking speed while jogging. Defaults to match the jog rate.",
+    )
+    parser.add_argument(
+        "--jog-acc",
+        type=int,
+        default=40,
+        help="Jog acceleration. Lower is gentler but lags more.",
+    )
+    parser.add_argument(
+        "--travel-speed",
+        type=int,
+        default=800,
+        help="Speed for the proving swing and returns to centre.",
+    )
     parser.add_argument("--speed", type=int, default=300, help="Sweep speed.")
     parser.add_argument("--cycles", type=int, default=3)
     args = parser.parse_args()
@@ -237,6 +253,12 @@ def main() -> None:
             minimum, maximum = min(first, second), max(first, second)
             if minimum == maximum:
                 raise SystemExit("\r\nBoth limits are the same; nothing to sweep.\r")
+            if minimum == zero or maximum == zero:
+                stuck = plus_name if maximum == zero else minus_name
+                raise SystemExit(
+                    f"\r\nOne limit is the zero itself, so there is no travel "
+                    f"{stuck}. Jog away from centre in both steps, then retry.\r"
+                )
             if not minimum <= zero <= maximum:
                 raise SystemExit(
                     f"\r\nZero {zero} is not between the limits "
