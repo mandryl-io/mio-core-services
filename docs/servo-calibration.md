@@ -31,6 +31,7 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `calibrate_joint` | **yes** | Guided pass: hold other axes, centre, fit part, set zero and limits |
 | `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
 | `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
+| `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
 | `teleop_servo` / `system_teleop` | **yes** | Live arrow-key control |
@@ -159,17 +160,58 @@ travel rather than only at waypoints. Torque stays on so nothing drops.
 With no `--cycles` it loops until stopped. Start slow and single-cycle on a
 newly assembled mechanism, with a hand near the keyboard.
 
-### 6. Release torque
+### 6. Torque release
+
+Every movement tool now **goes limp when it exits**, including on abort. A servo
+holding a position the mechanism already supports has nothing to do but correct
+its own sensor noise, which is what makes it buzz while stationary.
+
+Pass `--keep-torque` when you need it to hold — fitting a part to a centred
+shaft, or a joint that cannot support its own weight:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibrate_joint \
+  --id 2 --keys up-down --keep-torque
+```
+
+To release manually at any time:
 
 ```bash
 uv run --frozen python -c "
 from mio_core_services.firmware.sts3215 import STS3215Bus
-with STS3215Bus() as b:
-    b.enable_torque(1, False); b.enable_torque(2, False)"
+with STS3215Bus(release_ids=[1, 2]):
+    pass"
 ```
 
-Torque stays engaged after an abort or a jog, by design, so a joint cannot drop
-under gravity mid-calibration.
+## Jitter while stationary
+
+If a servo buzzes or hunts while holding still, it is correcting position errors
+finer than it can usefully resolve. Two settings control this, both EEPROM:
+
+| Register | Addr | Factory | Effect |
+| --- | --- | --- | --- |
+| CW / CCW dead zone | 26, 27 | 1 | How far off target before it corrects. Wider is calmer, coarser |
+| P coefficient | 21 | 32 | Correction strength. Lower is softer, slower to settle |
+
+Inspect the current values:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1
+```
+
+Apply the anti-jitter preset (dead zone 4 either way, P 24):
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --calm
+```
+
+Or set them individually, e.g. `--dead-zone 6`, `--p 20`. `--factory` restores
+the defaults for every register the tool knows.
+
+These are **EEPROM writes and persist across power cycles**. The tool disables
+torque and releases the EEPROM lock around the write, prints before and after
+values, and re-locks. Try releasing torque first — if the joint holds its own
+weight, that fixes the buzzing without changing anything permanent.
 
 ## servo_zeros.json
 

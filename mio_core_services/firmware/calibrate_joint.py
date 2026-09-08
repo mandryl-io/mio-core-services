@@ -159,6 +159,12 @@ def main() -> None:
     )
     parser.add_argument("--speed", type=int, default=300, help="Sweep speed.")
     parser.add_argument("--cycles", type=int, default=3)
+    parser.add_argument(
+        "--keep-torque",
+        action="store_true",
+        dest="hold_torque",
+        help="Leave torque engaged when this exits, instead of going limp.",
+    )
     args = parser.parse_args()
     if args.step < 1:
         raise SystemExit("--step must be >= 1")
@@ -180,7 +186,8 @@ def main() -> None:
 
     print(f"Calibrating servo {args.id}. Jog with {key_label}, Enter to confirm, q to abort.\n")
 
-    with STS3215Bus(args.port, args.baudrate) as bus:
+    release_ids = () if args.hold_torque else [args.id, *holds]
+    with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
         for servo_id in holds:
             zero = int(records[str(servo_id)]["zero"])
             bus.prepare(servo_id=servo_id, speed=args.speed, acc=20)
@@ -271,7 +278,7 @@ def main() -> None:
                     _say(f"   cycle {cycle}: {label} {goal} -> at {at}")
                     time.sleep(PAUSE)
             _say()
-            _say("Holding at centre.")
+            _say("Holding at centre." if args.hold_torque else "At centre.")
 
         merge_record(args.output, args.id, zero, minimum, maximum)
         print(f"Wrote servo {args.id} to {args.output}: "

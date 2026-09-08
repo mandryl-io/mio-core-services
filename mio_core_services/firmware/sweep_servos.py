@@ -80,6 +80,12 @@ def main() -> None:
         default=0.4,
         help="Seconds to pause at min, max, and zero.",
     )
+    parser.add_argument(
+        "--keep-torque",
+        action="store_true",
+        dest="hold_torque",
+        help="Leave torque engaged when this exits, instead of going limp.",
+    )
     args = parser.parse_args()
     if args.timeout <= 0:
         raise SystemExit("--timeout must be > 0")
@@ -89,7 +95,8 @@ def main() -> None:
     zeros = load_zeros(args.zeros)
     print(f"Sweeping {len(zeros)} servo(s) from {args.zeros} on {args.port}")
 
-    with STS3215Bus(args.port, args.baudrate) as bus:
+    release_ids = () if args.hold_torque else list(zeros)
+    with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
         home = {servo_id: rng.zero for servo_id, rng in zeros.items()}
         for servo_id in zeros:
             bus.prepare(servo_id=servo_id, speed=args.speed, acc=50)

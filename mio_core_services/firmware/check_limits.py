@@ -79,6 +79,12 @@ def main() -> None:
         help="Sweeps per servo. 0 repeats until a key is pressed.",
     )
     parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument(
+        "--keep-torque",
+        action="store_true",
+        dest="hold_torque",
+        help="Leave torque engaged when this exits, instead of going limp.",
+    )
     args = parser.parse_args()
     if args.pause < 0:
         raise SystemExit("--pause must be >= 0")
@@ -102,7 +108,8 @@ def main() -> None:
     print("\nPress ANY KEY to stop immediately.\n")
 
     stopped_at: dict[int, int] = {}
-    with STS3215Bus(args.port, args.baudrate) as bus:
+    release_ids = () if args.hold_torque else ids
+    with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
         try:
             with RawTerminal() as terminal:
                 for servo_id in ids:
@@ -141,7 +148,11 @@ def main() -> None:
             _say("STOPPED.")
             for servo_id, position in stopped_at.items():
                 _say(f"  servo {servo_id} held at {position}")
-            _say("Torque is still on. Release it with set_zero --release if needed.")
+            _say(
+                "Torque stays on until this exits."
+                if args.hold_torque
+                else "Releasing torque."
+            )
             raise SystemExit(130) from None
 
     print("Done. All limits reached without a stop.")

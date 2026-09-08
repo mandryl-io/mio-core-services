@@ -90,6 +90,12 @@ def main() -> None:
         help="Tracking speed. Defaults to match the jog rate, which is "
         "what keeps jogging smooth.",
     )
+    parser.add_argument(
+        "--keep-torque",
+        action="store_true",
+        dest="hold_torque",
+        help="Leave torque engaged when this exits, instead of going limp.",
+    )
     args = parser.parse_args()
     if args.step < 1:
         raise SystemExit("--step must be >= 1")
@@ -99,7 +105,8 @@ def main() -> None:
     if not sys.stdin.isatty():
         raise SystemExit("Need a TTY for arrow-key teleop.")
 
-    with STS3215Bus(args.port, args.baudrate) as bus:
+    release_ids = () if args.hold_torque else [args.id_1, args.id_2]
+    with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
         min_1, max_1 = 0, POSITION_MAX
         min_2, max_2 = 0, POSITION_MAX
         if args.zeros:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 
 import serial
 
@@ -11,6 +12,13 @@ INST_READ = 0x02
 INST_WRITE = 0x03
 INST_SYNC_WRITE = 0x83
 ADDR_ID = 5
+# Position-loop tuning. All EEPROM: torque off and unlock before writing.
+ADDR_P_COEFFICIENT = 21
+ADDR_D_COEFFICIENT = 22
+ADDR_I_COEFFICIENT = 23
+ADDR_MIN_STARTUP_FORCE = 24  # two bytes
+ADDR_CW_DEAD_ZONE = 26
+ADDR_CCW_DEAD_ZONE = 27
 ADDR_TORQUE_ENABLE = 40
 ADDR_ACC = 41
 ADDR_GOAL_POSITION = 42
@@ -88,7 +96,11 @@ class STS3215Bus:
         self,
         port: str = DEFAULT_PORT,
         baudrate: int = DEFAULT_BAUDRATE,
+        release_ids: Sequence[int] | None = None,
     ) -> None:
+        # Servos to limp on close. A servo holding a position it can already
+        # support mechanically only buzzes correcting its own noise.
+        self._release_ids = tuple(release_ids or ())
         ser = serial.Serial()
         ser.port = port
         ser.baudrate = baudrate
@@ -101,6 +113,11 @@ class STS3215Bus:
         self._serial.reset_input_buffer()
 
     def close(self) -> None:
+        for servo_id in self._release_ids:
+            try:
+                self.enable_torque(servo_id, False)
+            except (TimeoutError, OSError, serial.SerialException):
+                pass
         self._serial.close()
 
     def __enter__(self) -> STS3215Bus:
@@ -166,6 +183,35 @@ class STS3215Bus:
         # ACK comes from the new ID; EEPROM needs a moment before it replies.
         time.sleep(0.15)
         self._write(new_id, ADDR_LOCK, bytes([1]))
+
+    def read_byte(self, servo_id: int, address: int) -> int:
+        return self._read(servo_id, address, 1)[0]
+
+    def read_word(self, servo_id: int, address: int) -> int:
+        data = self._read(servo_id, address, 2)
+        return data[0] | (data[1] << 8)
+
+    def write_config(self, servo_id: int, values: dict[int, tuple[int, int]]) -> None:
+        """Write EEPROM tuning registers as {address: (value, byte_width)}.
+
+        EEPROM only accepts writes with torque off and the lock released, so
+        this brackets the writes with both.
+        """
+        if not values:
+            return
+        self.enable_torque(servo_id, False)
+        time.sleep(0.02)
+        self._write(servo_id, ADDR_LOCK, bytes([0]))
+        time.sleep(0.05)
+        for address, (value, width) in sorted(values.items()):
+            if width == 1:
+                payload = bytes([value & 0xFF])
+            else:
+                payload = bytes([value & 0xFF, (value >> 8) & 0xFF])
+            self._write(servo_id, address, payload)
+            time.sleep(0.05)
+        self._write(servo_id, ADDR_LOCK, bytes([1]))
+        time.sleep(0.05)
 
     def enable_torque(self, servo_id: int = 1, enabled: bool = True) -> None:
         self._write(servo_id, ADDR_TORQUE_ENABLE, bytes([int(enabled)]))
