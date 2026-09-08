@@ -30,6 +30,13 @@ from mio_core_services.firmware.zero_servos import (
 ARRIVE_TOLERANCE = 20
 PAUSE = 1.0
 SWEEP_CYCLES = 3
+JOG_SPEED_HEADROOM = 1.25
+MIN_JOG_SPEED = 50
+
+
+def jog_speed_for(step: int) -> int:
+    """Tracking speed matched to how fast jogging actually advances the goal."""
+    return max(MIN_JOG_SPEED, round(step / JOG_DT * JOG_SPEED_HEADROOM))
 
 
 def _say(message: str = "") -> None:
@@ -97,7 +104,12 @@ def main() -> None:
         help="Centre position. Defaults to the value in the output file.",
     )
     parser.add_argument("--step", type=int, default=4, help="Ticks per jog tick.")
-    parser.add_argument("--jog-speed", type=int, default=800)
+    parser.add_argument(
+        "--jog-speed",
+        type=int,
+        help="Tracking speed while jogging. Defaults to match the jog rate.",
+    )
+    parser.add_argument("--jog-acc", type=int, default=40)
     parser.add_argument(
         "--speed", type=int, default=300, help="Sweep speed. Lower is slower."
     )
@@ -124,7 +136,8 @@ def main() -> None:
     print("Hold left/right to jog, Enter to confirm, q to abort.\n")
 
     with STS3215Bus(args.port, args.baudrate) as bus:
-        bus.prepare(servo_id=args.id, speed=args.jog_speed, acc=30)
+        jog_speed = args.jog_speed or jog_speed_for(args.step)
+        bus.prepare(servo_id=args.id, speed=jog_speed, acc=args.jog_acc)
 
         with RawTerminal() as terminal:
             _say(f"Centring at {_settle(bus, args.id, zero)}...")

@@ -39,6 +39,16 @@ KEY_MODES = {
 
 ARRIVE_TOLERANCE = 20
 PAUSE = 1.0
+# Goals are re-issued every JOG_DT, so the servo must still be travelling when
+# the next one lands. Commanding much faster than the jog rate makes it sprint,
+# stop, and wait, which reads as jitter.
+JOG_SPEED_HEADROOM = 1.25
+MIN_JOG_SPEED = 50
+
+
+def jog_speed_for(step: int) -> int:
+    """Tracking speed matched to how fast jogging actually advances the goal."""
+    return max(MIN_JOG_SPEED, round(step / JOG_DT * JOG_SPEED_HEADROOM))
 
 
 def _say(message: str = "") -> None:
@@ -151,6 +161,7 @@ def main() -> None:
         raise SystemExit("Need a TTY for arrow-key jogging. Run with: ssh -t ...")
 
     plus_keys, minus_keys, key_label, plus_name, minus_name = KEY_MODES[args.keys]
+    jog_speed = args.jog_speed or jog_speed_for(args.step)
 
     records = read_records(args.output)
     holds = args.holds
@@ -169,7 +180,7 @@ def main() -> None:
             print(f"Holding servo {servo_id} at its zero {zero} -> "
                   f"at {_settle(bus, servo_id, zero)}")
 
-        bus.prepare(servo_id=args.id, speed=args.jog_speed, acc=30)
+        bus.prepare(servo_id=args.id, speed=args.travel_speed, acc=30)
         if args.skip_prove:
             parked = _settle(bus, args.id, args.centre)
         else:
@@ -180,7 +191,8 @@ def main() -> None:
                 time.sleep(0.4)
             parked = _settle(bus, args.id, args.centre)
             print(f"  centre {args.centre} -> at {parked}")
-        print(f"Servo {args.id} parked at {parked} (torque on).\n")
+        print(f"Servo {args.id} parked at {parked} (torque on).")
+        print(f"Jogging at speed {jog_speed}, acc {args.jog_acc}, step {args.step}.\n")
 
         with RawTerminal() as terminal:
             _say("1. Fit the part now. Press Enter when it is on, or q to abort.")
@@ -188,6 +200,7 @@ def main() -> None:
             _say()
 
             _say(f"2. Jog to the joint's true centre ({key_label}), then Enter.")
+            bus.prepare(servo_id=args.id, speed=jog_speed, acc=args.jog_acc)
             zero = _jog(
                 bus, terminal, args.id, parked, args.centre,
                 args.step, plus_keys, minus_keys,
@@ -197,6 +210,7 @@ def main() -> None:
             _say()
 
             _say(f"3. Jog to maximum {plus_name}, then Enter.")
+            bus.prepare(servo_id=args.id, speed=jog_speed, acc=args.jog_acc)
             first = _jog(
                 bus, terminal, args.id, zero, zero,
                 args.step, plus_keys, minus_keys,
@@ -206,10 +220,12 @@ def main() -> None:
             _say()
 
             _say("Back to centre...")
+            bus.prepare(servo_id=args.id, speed=args.travel_speed, acc=30)
             _settle(bus, args.id, zero)
             _say()
 
             _say(f"4. Jog to maximum {minus_name}, then Enter.")
+            bus.prepare(servo_id=args.id, speed=jog_speed, acc=args.jog_acc)
             second = _jog(
                 bus, terminal, args.id, zero, zero,
                 args.step, plus_keys, minus_keys,

@@ -68,6 +68,28 @@ It:
 explicitly, `--centre` to park somewhere other than 2048. `q` aborts at any
 point without writing.
 
+### Jogging smoothly
+
+Jogging re-issues the goal every 20 ms. If the servo is commanded much faster
+than the goal actually advances, it sprints to each one, stops, and waits —
+50 times a second, which feels like jitter and is worst on a gravity-loaded
+axis like head pitch.
+
+The tracking speed therefore defaults to the jog rate itself, `step / 0.02`
+plus a little headroom, rather than a fixed value. Changing `--step` changes it
+to match, so smaller steps stay smooth:
+
+| `--step` | ticks/s | commanded speed |
+| --- | --- | --- |
+| 2 | 100 | 125 |
+| 4 (default) | 200 | 250 |
+| 8 | 400 | 500 |
+
+If it still feels lumpy, drop `--step 2` for finer motion, or `--jog-acc 20`
+for gentler ramps — too low and it visibly lags the keys. `--jog-speed`
+overrides the automatic value, and `--travel-speed` controls the proving swing
+and the returns to centre, which are not jogged and stay fast.
+
 Limits are sorted, so it does not matter which key drives which way, and the
 zero must fall between them or it refuses to save.
 
