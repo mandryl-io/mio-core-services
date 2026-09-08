@@ -6,7 +6,11 @@ import argparse
 import sys
 import time
 
-from mio_core_services.firmware.sts3215 import DEFAULT_PORT, STS3215Bus
+from mio_core_services.firmware.sts3215 import (
+    DEFAULT_BAUDRATE,
+    DEFAULT_PORT,
+    STS3215Bus,
+)
 from mio_core_services.firmware.zero_servos import load_zeros
 
 ARRIVE_TOLERANCE = 40
@@ -57,6 +61,7 @@ def main() -> None:
         help="JSON file of servo id -> zero/min/max. Each servo is swept min→max→zero.",
     )
     parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument(
         "--speed",
         type=int,
@@ -84,7 +89,7 @@ def main() -> None:
     zeros = load_zeros(args.zeros)
     print(f"Sweeping {len(zeros)} servo(s) from {args.zeros} on {args.port}")
 
-    with STS3215Bus(args.port) as bus:
+    with STS3215Bus(args.port, args.baudrate) as bus:
         home = {servo_id: rng.zero for servo_id, rng in zeros.items()}
         for servo_id in zeros:
             bus.prepare(servo_id=servo_id, speed=args.speed, acc=50)

@@ -11,6 +11,7 @@ import time
 import tty
 
 from mio_core_services.firmware.sts3215 import (
+    DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     POSITION_MAX,
     STS3215Bus,
@@ -57,6 +58,7 @@ def _status(message: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument("--id", type=int, default=1)
     parser.add_argument(
         "--zeros",
@@ -80,7 +82,7 @@ def main() -> None:
     if not sys.stdin.isatty():
         raise SystemExit("Need a TTY for arrow-key teleop.")
 
-    with STS3215Bus(args.port) as bus:
+    with STS3215Bus(args.port, args.baudrate) as bus:
         if args.zeros:
             zeros = load_zeros(args.zeros)
             if args.id not in zeros:

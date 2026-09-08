@@ -18,8 +18,11 @@ ADDR_GOAL_SPEED = 46
 ADDR_LOCK = 55
 ADDR_PRESENT_POSITION = 56
 
-DEFAULT_PORT = "/dev/ttyACM0"
-DEFAULT_BAUDRATE = 1_000_000
+# Waveshare Bus Servo Driver HAT (A) in ESP32 transparent-transmission
+# mode: the Pi drives GPIO 14/15 at 115200 and the ESP32 forwards to the
+# servo bus at 1 Mbps. See docs/waveshare-servo-hat.md.
+DEFAULT_PORT = "/dev/ttyAMA0"
+DEFAULT_BAUDRATE = 115_200
 BROADCAST_ID = 254
 CENTER_POSITION = 2048
 POSITION_MAX = 4095

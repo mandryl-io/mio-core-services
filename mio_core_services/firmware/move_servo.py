@@ -5,6 +5,7 @@ import time
 
 from mio_core_services.firmware.sts3215 import (
     CENTER_POSITION,
+    DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     STS3215Bus,
 )
@@ -13,6 +14,7 @@ from mio_core_services.firmware.sts3215 import (
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument("--id", type=int, default=1)
     parser.add_argument(
         "--position",
@@ -23,7 +25,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Moving servo {args.id} on {args.port} to {args.position}")
-    with STS3215Bus(args.port) as bus:
+    with STS3215Bus(args.port, args.baudrate) as bus:
         bus.move(args.position, servo_id=args.id)
         time.sleep(1.5)
     print("Done.")
