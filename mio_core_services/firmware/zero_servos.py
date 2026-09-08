@@ -13,6 +13,7 @@ import tty
 from dataclasses import dataclass
 from typing import Self
 
+from mio_core_services.firmware import jog
 from mio_core_services.firmware.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
@@ -24,8 +25,8 @@ LEFT_KEYS = frozenset({"\x1b[D", "\x1bOD", "a", "h"})
 RIGHT_KEYS = frozenset({"\x1b[C", "\x1bOC", "d", "l"})
 CONFIRM_KEYS = frozenset({"\r", "\n"})
 QUIT_KEYS = frozenset({"q", "\x03"})
-JOG_DT = 0.02
-HOLD_DT = 0.12
+JOG_DT = jog.JOG_DT
+HOLD_DT = jog.HOLD_DT
 
 
 @dataclass(frozen=True)
@@ -240,8 +241,8 @@ def main() -> None:
     parser.add_argument(
         "--speed",
         type=int,
-        default=2400,
-        help="How fast the servo tracks the jogging goal.",
+        help="Tracking speed. Defaults to match the jog rate, which is what "
+        "keeps jogging smooth.",
     )
     args = parser.parse_args()
     if args.step < 1:
@@ -250,6 +251,8 @@ def main() -> None:
         raise SystemExit("Servo IDs must be unique.")
     if not sys.stdin.isatty():
         raise SystemExit("Need a TTY for arrow-key teleop.")
+
+    speed = args.speed or jog.jog_speed_for(args.step)
 
     records: dict[str, dict[str, int]] = {}
     with STS3215Bus(args.port, args.baudrate) as bus:
@@ -261,7 +264,7 @@ def main() -> None:
                     servo_id,
                     args.port,
                     args.step,
-                    args.speed,
+                    speed,
                 )
             if recorded is None:
                 sys.stdout.write("Stopped.\n")

@@ -6,6 +6,7 @@ import argparse
 import sys
 import time
 
+from mio_core_services.firmware.jog import jog_speed_for
 from mio_core_services.firmware.servo_zeros_io import (
     degrees_from_ticks,
     merge_record,
@@ -30,13 +31,6 @@ from mio_core_services.firmware.zero_servos import (
 ARRIVE_TOLERANCE = 20
 PAUSE = 1.0
 SWEEP_CYCLES = 3
-JOG_SPEED_HEADROOM = 1.25
-MIN_JOG_SPEED = 50
-
-
-def jog_speed_for(step: int) -> int:
-    """Tracking speed matched to how fast jogging actually advances the goal."""
-    return max(MIN_JOG_SPEED, round(step / JOG_DT * JOG_SPEED_HEADROOM))
 
 
 def _say(message: str = "") -> None:

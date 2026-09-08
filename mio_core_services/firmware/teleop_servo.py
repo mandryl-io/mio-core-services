@@ -10,6 +10,7 @@ import termios
 import time
 import tty
 
+from mio_core_services.firmware import jog
 from mio_core_services.firmware.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
@@ -21,8 +22,8 @@ from mio_core_services.firmware.zero_servos import load_zeros
 LEFT_KEYS = frozenset({"\x1b[D", "\x1bOD", "a", "h"})
 RIGHT_KEYS = frozenset({"\x1b[C", "\x1bOC", "d", "l"})
 QUIT_KEYS = frozenset({"q", "\x03"})
-JOG_DT = 0.02
-HOLD_DT = 0.12
+JOG_DT = jog.JOG_DT
+HOLD_DT = jog.HOLD_DT
 
 
 class RawTerminal:
@@ -73,12 +74,13 @@ def main() -> None:
     parser.add_argument(
         "--speed",
         type=int,
-        default=2400,
-        help="How fast the servo tracks the jogging goal.",
+        help="Tracking speed. Defaults to match the jog rate, which is "
+        "what keeps jogging smooth.",
     )
     args = parser.parse_args()
     if args.step < 1:
         raise SystemExit("--step must be >= 1")
+    speed = args.speed or jog.jog_speed_for(args.step)
     if not sys.stdin.isatty():
         raise SystemExit("Need a TTY for arrow-key teleop.")
 
@@ -93,7 +95,7 @@ def main() -> None:
                 position = bus.position(servo_id=args.id)
             except TimeoutError as exc:
                 raise SystemExit(str(exc)) from exc
-        bus.prepare(servo_id=args.id, speed=args.speed, acc=50)
+        bus.prepare(servo_id=args.id, speed=speed, acc=50)
         bus.set_goal(position, servo_id=args.id)
         sys.stdout.write(
             f"Teleop servo {args.id} on {args.port} from {position}. "

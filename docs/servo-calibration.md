@@ -72,11 +72,13 @@ point without writing.
 
 Jogging re-issues the goal every 20 ms. If the servo is commanded much faster
 than the goal actually advances, it sprints to each one, stops, and waits —
-50 times a second, which feels like jitter and is worst on a gravity-loaded
-axis like head pitch.
+50 times a second, which feels like jitter and is worst on a loaded axis.
 
-The tracking speed therefore defaults to the jog rate itself, `step / 0.02`
-plus a little headroom, rather than a fixed value. Changing `--step` changes it
+Every jogging tool therefore derives its tracking speed from the jog rate,
+`step / 0.02` plus a little headroom, rather than using a fixed value. The
+shared helper is `firmware/jog.py`; `zero_servos`, `teleop_servo` and
+`system_teleop` previously paired step 5 with a fixed speed of 2400, roughly
+ten times the rate the goal actually moved. Changing `--step` changes it
 to match, so smaller steps stay smooth:
 
 | `--step` | ticks/s | commanded speed |
