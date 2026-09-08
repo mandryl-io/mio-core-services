@@ -1,16 +1,14 @@
-"""Set a servo's symmetric travel limits, then verify them with a sweep."""
+"""Set a servo's travel limits explicitly, then sweep them slowly to verify."""
 
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 
 from mio_core_services.firmware.servo_zeros_io import (
     degrees_from_ticks,
     merge_record,
     read_records,
-    ticks_from_degrees,
 )
 from mio_core_services.firmware.sts3215 import (
     DEFAULT_BAUDRATE,
@@ -18,28 +16,13 @@ from mio_core_services.firmware.sts3215 import (
     POSITION_MAX,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import (
-    CONFIRM_KEYS,
-    HOLD_DT,
-    JOG_DT,
-    LEFT_KEYS,
-    QUIT_KEYS,
-    RIGHT_KEYS,
-    RawTerminal,
-)
 
 ARRIVE_TOLERANCE = 20
-CENTRE_PAUSE = 0.5
+PAUSE = 1.0
 SWEEP_CYCLES = 3
 
 
-def _say(message: str = "") -> None:
-    """Print a line that renders correctly whether or not the tty is raw."""
-    sys.stdout.write(f"{message}\r\n")
-    sys.stdout.flush()
-
-
-def _settle(bus: STS3215Bus, servo_id: int, goal: int, timeout: float = 15.0) -> int:
+def _settle(bus: STS3215Bus, servo_id: int, goal: int, timeout: float = 20.0) -> int:
     bus.set_goal(goal, servo_id=servo_id)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -49,168 +32,105 @@ def _settle(bus: STS3215Bus, servo_id: int, goal: int, timeout: float = 15.0) ->
     return bus.position(servo_id=servo_id)
 
 
-def _wait_for_key(terminal: RawTerminal, accepted: set[str]) -> str:
-    while True:
-        key = terminal.poll_key(0.1)
-        if key is None:
-            continue
-        if key in QUIT_KEYS:
-            raise SystemExit("\r\nAborted. Nothing was saved.")
-        lowered = key.lower()
-        if lowered in accepted:
-            return lowered
-
-
-def _jog_to(
-    bus: STS3215Bus,
-    terminal: RawTerminal,
-    servo_id: int,
-    start: int,
-    step: int,
-) -> int:
-    """Arrow-key jog until Enter, returning the position settled on."""
-    position = start
-    direction = 0
-    last_hold = 0.0
-    while True:
-        key = terminal.poll_key(JOG_DT)
-        now = time.monotonic()
-        while key is not None:
-            if key in LEFT_KEYS:
-                direction, last_hold = -1, now
-            elif key in RIGHT_KEYS:
-                direction, last_hold = 1, now
-            elif key in CONFIRM_KEYS:
-                return bus.position(servo_id=servo_id)
-            elif key in QUIT_KEYS:
-                raise SystemExit("\r\nAborted. Nothing was saved.")
-            key = terminal.poll_key(0)
-        if now - last_hold > HOLD_DT:
-            direction = 0
-            continue
-        position = max(0, min(POSITION_MAX, position + direction * step))
-        bus.set_goal(position, servo_id=servo_id)
-        sys.stdout.write(
-            f"\r\x1b[K  {position}  "
-            f"({degrees_from_ticks(position - start):+.1f} deg from here)"
-        )
-        sys.stdout.flush()
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--id", type=int, default=1, help="Servo to calibrate.")
+    parser.add_argument("--id", type=int, default=1)
     parser.add_argument("--port", default=DEFAULT_PORT)
     parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument("-o", "--output", default="servo_zeros.json")
     parser.add_argument(
-        "--degrees",
-        type=float,
-        default=180.0,
-        help="Total travel to try first, split evenly either side of zero.",
-    )
-    parser.add_argument(
         "--zero",
         type=int,
-        help="Zero position. Defaults to the value already in the output file.",
+        help="Centre position. Defaults to the value in the output file.",
     )
-    parser.add_argument("--step", type=int, default=4, help="Ticks per jog tick.")
-    parser.add_argument("--speed", type=int, default=800)
+    parser.add_argument("--min", type=int, help="Anticlockwise limit, absolute.")
+    parser.add_argument("--max", type=int, help="Clockwise limit, absolute.")
+    parser.add_argument(
+        "--travel",
+        type=int,
+        help="Symmetric limit in ticks either side of zero, instead of min/max.",
+    )
+    parser.add_argument(
+        "--speed",
+        type=int,
+        default=300,
+        help="Servo tracking speed. Lower is slower.",
+    )
+    parser.add_argument(
+        "--cycles", type=int, default=SWEEP_CYCLES, help="Sweeps to run."
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Sweep without writing the limits to the output file.",
+    )
     args = parser.parse_args()
-    if args.degrees <= 0:
-        raise SystemExit("--degrees must be > 0")
-    if not sys.stdin.isatty():
-        raise SystemExit("Need a TTY for arrow-key jogging. Run with: ssh -t ...")
 
     zero = args.zero
     if zero is None:
         record = read_records(args.output).get(str(args.id))
         if record is None:
             raise SystemExit(
-                f"No zero recorded for servo {args.id} in {args.output}. "
+                f"No zero for servo {args.id} in {args.output}. "
                 "Run set_zero first, or pass --zero."
             )
         zero = int(record["zero"])
 
-    half = ticks_from_degrees(args.degrees / 2)
-    print(f"Servo {args.id}: zero is {zero}.")
+    if args.travel is not None:
+        if args.min is not None or args.max is not None:
+            raise SystemExit("Use --travel or --min/--max, not both.")
+        if args.travel <= 0:
+            raise SystemExit("--travel must be > 0")
+        minimum, maximum = zero - args.travel, zero + args.travel
+    else:
+        if args.min is None or args.max is None:
+            raise SystemExit("Pass --min and --max, or --travel.")
+        minimum, maximum = args.min, args.max
+
+    if not 0 <= minimum <= zero <= maximum <= POSITION_MAX:
+        raise SystemExit(
+            f"Need 0 <= min <= zero <= max <= {POSITION_MAX}, "
+            f"got min={minimum} zero={zero} max={maximum}"
+        )
+    if args.cycles < 1:
+        raise SystemExit("--cycles must be >= 1")
+
+    print(f"Servo {args.id}: zero {zero}, limits {minimum} - {maximum}")
     print(
-        f"Trying {args.degrees:g} deg total travel: "
-        f"{args.degrees / 2:g} deg each side ({half} ticks)."
+        f"  anticlockwise {zero - minimum} ticks "
+        f"({degrees_from_ticks(zero - minimum):.1f} deg)"
     )
-    print()
-    print("Unplug the servo wire running on to the next joint first, so it")
-    print("cannot be pulled or twisted while this rotates.")
-    print()
+    print(
+        f"  clockwise     {maximum - zero} ticks "
+        f"({degrees_from_ticks(maximum - zero):.1f} deg)"
+    )
+    print(f"Sweeping {args.cycles}x at speed {args.speed}, pausing {PAUSE:g}s at each stop.\n")
 
     with STS3215Bus(args.port, args.baudrate) as bus:
-        bus.prepare(servo_id=args.id, speed=args.speed, acc=30)
-        with RawTerminal() as terminal:
-            _say("Press Enter when the wire is unplugged, or q to abort.")
-            _wait_for_key(terminal, set(CONFIRM_KEYS) | {"\r", "\n"})
+        bus.prepare(servo_id=args.id, speed=args.speed, acc=20)
 
-            candidate = max(0, min(POSITION_MAX, zero + half))
-            if candidate != zero + half:
-                _say(f"Clamped to {candidate}: {zero + half} is off the encoder.")
-            _say(f"Moving to {candidate}...")
-            reached = _settle(bus, args.id, candidate)
-            _say(f"Reached {reached}.")
-            _say()
+        print(f"centre {zero} -> at {_settle(bus, args.id, zero)}")
+        time.sleep(PAUSE)
 
-            _say("Is that the right amount of travel? y = yes, n = let me set it.")
-            answer = _wait_for_key(terminal, {"y", "n"})
+        for cycle in range(1, args.cycles + 1):
+            for label, goal in (
+                ("clockwise max", maximum),
+                ("centre", zero),
+                ("anticlockwise max", minimum),
+                ("centre", zero),
+            ):
+                at = _settle(bus, args.id, goal)
+                print(f"  cycle {cycle}: {label} {goal} -> at {at}")
+                time.sleep(PAUSE)
 
-            if answer == "n":
-                _say()
-                _say("Jog to the furthest point you want in this direction.")
-                _say("Hold left/right, Enter to accept, q to abort.")
-                reached = _jog_to(bus, terminal, args.id, reached, args.step)
-                _say()
+        print(f"\nHolding at centre {bus.position(servo_id=args.id)}.")
 
-            travel = abs(reached - zero)
-            if travel == 0:
-                raise SystemExit("\r\nTravel is zero; nothing to calibrate.")
-            minimum = zero - travel
-            maximum = zero + travel
-            _say(
-                f"Travel {travel} ticks ({degrees_from_ticks(travel):.1f} deg) "
-                "each side."
-            )
-            if minimum < 0 or maximum > POSITION_MAX:
-                clamped_min = max(0, minimum)
-                clamped_max = min(POSITION_MAX, maximum)
-                _say(
-                    f"That does not fit symmetrically: {minimum}-{maximum} "
-                    f"exceeds 0-{POSITION_MAX}. Clamping to "
-                    f"{clamped_min}-{clamped_max}."
-                )
-                minimum, maximum = clamped_min, clamped_max
-            _say(f"Limits: {minimum} - {maximum}, zero {zero}.")
-            _say()
-
-            _say("Returning to centre...")
-            _settle(bus, args.id, zero)
-
-            _say(f"Sweeping {SWEEP_CYCLES} times, pausing at centre each pass.")
-            for cycle in range(1, SWEEP_CYCLES + 1):
-                for label, goal in (
-                    ("max", maximum),
-                    ("centre", zero),
-                    ("min", minimum),
-                    ("centre", zero),
-                ):
-                    at = _settle(bus, args.id, goal)
-                    _say(f"  cycle {cycle}: {label} {goal} -> at {at}")
-                    if label == "centre":
-                        time.sleep(CENTRE_PAUSE)
-
-            _say()
-            _say("Holding at centre.")
-
+    if args.no_save:
+        print("Not saved (--no-save).")
+    else:
         merge_record(args.output, args.id, zero, minimum, maximum)
         print(f"Wrote servo {args.id} to {args.output}: "
               f"zero={zero} min={minimum} max={maximum}")
-        print("Plug the onward servo wire back in.")
 
 
 if __name__ == "__main__":
