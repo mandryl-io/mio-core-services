@@ -30,19 +30,29 @@ The default judge is Ollama (`gemma2:9b`). Pull it with `ollama pull gemma2:9b` 
 
 # Waveshare HAT (A) Servo Calibration
 
-The documented Raspberry Pi path for the `Bus Servo Driver HAT (A)` is ESP32
-transparent-transmission mode. Flash Waveshare's transparent firmware once,
-put the switch in ESP32 mode, and use the Raspberry Pi GPIO UART at
-`/dev/serial0` at 115,200 baud. The ESP32 forwards the STS3215's native packets
-to the servo-side UART running at 1,000,000 baud; this is not the JSON protocol
-used by other Waveshare boards.
+Full setup, flashing instructions, and troubleshooting live in
+[docs/waveshare-servo-hat.md](docs/waveshare-servo-hat.md). Read that first if
+the servos do not respond.
+
+Two prerequisites, both one-time and both required on a factory-fresh board:
+
+1. The ESP32 must be running Waveshare's transparent-transmission firmware. The
+   stock firmware serves a WiFi control page and discards packets arriving on
+   the UART.
+2. On a Raspberry Pi 5, the GPIO UART must be enabled with `dtparam=uart0=on`
+   and addressed as `/dev/ttyAMA0`. Do not use `/dev/serial0` — on a Pi 5 it
+   points at the debug header, not at GPIO 14/15.
+
+With the HAT switch in ESP32 mode, the Pi talks to the ESP32 at 115,200 baud
+and the ESP32 forwards native STS3215 packets to the servo bus at 1,000,000
+baud. This is not the JSON protocol used by other Waveshare boards.
 
 With exactly one servo connected, make a non-moving read to confirm that ID 1
 and the transparent link work:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.read_servo \
-  --port /dev/serial0 --baudrate 115200 --id 1 --diagnose
+  --port /dev/ttyAMA0 --baudrate 115200 --id 1 --diagnose
 ```
 
 New STS3215 servos normally share ID 1. Leave the first (tilt) servo as ID 1.
@@ -51,7 +61,7 @@ then assign it ID 2:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.encode_servo_id \
-  --port /dev/serial0 --baudrate 115200 --current-id 1 --new-id 2
+  --port /dev/ttyAMA0 --baudrate 115200 --current-id 1 --new-id 2
 ```
 
 Power off, connect both servos to the same bus, and power on. Verify both IDs
@@ -59,9 +69,9 @@ before allowing movement:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.read_servo \
-  --port /dev/serial0 --baudrate 115200 --id 1
+  --port /dev/ttyAMA0 --baudrate 115200 --id 1
 uv run --frozen python -m mio_core_services.firmware.read_servo \
-  --port /dev/serial0 --baudrate 115200 --id 2
+  --port /dev/ttyAMA0 --baudrate 115200 --id 2
 ```
 
 Finally, interactively jog each servo to the mechanism's physical zero and
@@ -69,6 +79,6 @@ save the zero and travel limits:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.zero_servos \
-  --port /dev/serial0 --baudrate 115200 \
+  --port /dev/ttyAMA0 --baudrate 115200 \
   --output servo_zeros.json 1 2
 ```
