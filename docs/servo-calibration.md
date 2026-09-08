@@ -34,6 +34,7 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
 | `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
 | `apply_limits` | no | Writes the calibrated limits into the servos' own EEPROM |
+| `idle_motion` | no | Natural head movement inside the calibrated range |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
 | `teleop_servo` | **yes** | Live arrow-key control of one servo |
@@ -229,6 +230,30 @@ confirm; the second only reports. `--factory` restores the full 0-4095 travel.
 
 Limits apply in position mode only (address 33 = 0), which `--verify` checks.
 Anything that drives the servos autonomously should verify before moving.
+
+## Idle motion
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.apply_limits
+uv run --frozen python -m mio_core_services.firmware.idle_motion
+```
+
+Generates gaze shifts rather than a sweep: mostly small glances near centre,
+occasionally a wider look, sometimes a nod, with varied speed and dwell.
+
+Three layers keep it inside the range, so no single mistake can drive the
+mechanism into a stop:
+
+1. It refuses to start unless each servo's **EEPROM limits match the
+   calibration**. `--no-verify` skips that check.
+2. Targets are drawn from a range **inset by `--margin`** (8% of travel at each
+   end by default), so normal motion never approaches the limits.
+3. Every goal is **clamped** before it is sent, and a clamp that actually fires
+   is reported to stderr as the bug it would be.
+
+`--seconds` bounds the run, `--seed` repeats a sequence, `--margin 0.15` stays
+further clear. It returns to centre and goes limp on exit, and handles SIGTERM
+so systemd can stop it cleanly.
 
 ## Jitter while travelling
 
