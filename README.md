@@ -42,7 +42,7 @@ and the transparent link work:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.read_servo \
-  --port /dev/serial0 --baudrate 115200 --id 1
+  --port /dev/serial0 --baudrate 115200 --id 1 --diagnose
 ```
 
 New STS3215 servos normally share ID 1. Leave the first (tilt) servo as ID 1.
