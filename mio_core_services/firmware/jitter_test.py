@@ -39,11 +39,14 @@ def _sample(bus: STS3215Bus, servo_id: int, seconds: float) -> tuple[list[int], 
     return positions, volts, faults
 
 
-def _describe(label: str, positions: list[int]) -> float:
+def _describe(label: str, positions: list[int], target: int | None = None) -> float:
     if len(positions) < 2:
         print(f"  {label}: too few samples")
         return 0.0
     spread = max(positions) - min(positions)
+    if target is not None:
+        mean = statistics.fmean(positions)
+        print(f"  {label:<12} settled at {mean:.1f}, {mean - target:+.1f} from goal")
     rms = statistics.pstdev(positions)
     print(
         f"  {label:<12} peak-to-peak {spread:4d} ticks "
@@ -60,6 +63,12 @@ def main() -> None:
     parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
     parser.add_argument("-z", "--zeros", default="servo_zeros.json")
     parser.add_argument("--seconds", type=float, default=6.0)
+    parser.add_argument(
+        "--settle-timeout",
+        type=float,
+        default=20.0,
+        help="How long to allow for reaching the hold position.",
+    )
     parser.add_argument(
         "--at",
         type=int,
@@ -79,11 +88,29 @@ def main() -> None:
 
         bus.prepare(servo_id=args.id, speed=400, acc=30)
         bus.set_goal(target, servo_id=args.id)
-        time.sleep(2.0)
+
+        # Wait for arrival rather than a fixed delay: a fixed one samples the
+        # servo mid-journey and reports the travel as jitter.
+        deadline = time.monotonic() + args.settle_timeout
+        arrived = False
+        while time.monotonic() < deadline:
+            try:
+                if abs(bus.position(servo_id=args.id) - target) <= 8:
+                    arrived = True
+                    break
+            except TimeoutError:
+                pass
+            time.sleep(0.05)
+        if not arrived:
+            raise SystemExit(
+                f"Servo {args.id} did not reach {target} within "
+                f"{args.settle_timeout:g}s. Check it is inside the travel limits."
+            )
+        time.sleep(1.0)  # let the approach settle before measuring
 
         print("torque ON (position loop active):")
         held, volts_on, faults_on = _sample(bus, args.id, args.seconds)
-        spread_on = _describe("holding", held)
+        spread_on = _describe("holding", held, target)
 
         bus.enable_torque(args.id, False)
         time.sleep(0.5)
@@ -109,7 +136,9 @@ def main() -> None:
     else:
         print(
             "  It is much steadier limp than driven, so the position loop is\n"
-            "  hunting. Try: tune_servo --id {} --damped".format(args.id)
+            f"  hunting. Restore the baseline, then raise damping:\n"
+            f"    tune_servo --id {args.id} --baseline\n"
+            f"    tune_servo --id {args.id} --d 48"
         )
 
 
