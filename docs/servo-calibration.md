@@ -28,17 +28,48 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `encode_servo_id` | no | Writes a new ID to EEPROM |
 | `move_servo` | no | Moves one servo to an absolute position |
 | `set_zero` | no | Records the current position as that servo's zero |
+| `calibrate_joint` | **yes** | Guided pass: hold other axes, centre, fit part, set zero and limits |
 | `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
 | `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
 | `teleop_servo` / `system_teleop` | **yes** | Live arrow-key control |
 
-`set_zero`, `calibrate_range`, and `check_limits` **merge** into
+`set_zero`, `calibrate_joint`, `calibrate_range`, and `check_limits` **merge** into
 `servo_zeros.json`; `zero_servos` rewrites it wholesale, so it will drop servos
 you are not currently calibrating.
 
-## Calibrating a joint
+## Calibrating a joint in one pass
+
+`calibrate_joint` runs the whole sequence for one axis, holding the others
+steady so the joint is calibrated in the pose it will actually rest in.
+
+Head pitch, with the neck held at its zero and the up/down arrows driving it:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibrate_joint \
+  --id 2 --keys up-down
+```
+
+It:
+
+1. Drives every other servo in the file to its recorded zero and holds it
+2. Parks the target shaft at its electrical centre (2048) so the part goes on
+   square, then waits for **Enter** while you fit it
+3. Jogs to the joint's **true centre** — Enter records it as the zero
+4. Jogs to **maximum up**, Enter; returns to centre
+5. Jogs to **maximum down**, Enter
+6. Sweeps three times, pausing a second at each stop
+7. Merges zero/min/max into `servo_zeros.json`
+
+`--keys left-right` for a yaw axis, `--hold 1` to name which servos to hold
+explicitly, `--centre` to park somewhere other than 2048. `q` aborts at any
+point without writing.
+
+Limits are sorted, so it does not matter which key drives which way, and the
+zero must fall between them or it refuses to save.
+
+## Calibrating a joint step by step
 
 The order matters: the zero is set with the part physically fitted, and the
 limits are measured from that zero.
