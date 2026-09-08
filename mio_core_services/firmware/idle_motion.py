@@ -120,10 +120,19 @@ def _breathe(
     resting: dict[int, int],
     seconds: float,
     stopping: Stopping,
+    limp: bool = False,
 ) -> None:
-    """Hold a pose, drifting a few ticks now and then so it does not look frozen."""
+    """Hold a pose, drifting a few ticks now and then so it does not look frozen.
+
+    With limp set, torque is cut between drifts: a servo actively holding a
+    pose the mechanism already supports has nothing to do but correct its own
+    sensor noise, which is the buzz.
+    """
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline and not stopping.requested:
+        if limp:
+            for servo_id in resting:
+                bus.enable_torque(servo_id, False)
         _dwell(random.uniform(2.5, 5.0), stopping)
         if stopping.requested or time.monotonic() >= deadline:
             break
@@ -273,6 +282,12 @@ def main() -> None:
         help="Skip the hardware limit check. Not advised.",
     )
     parser.add_argument(
+        "--stiff",
+        action="store_true",
+        help="Hold torque through pauses. By default it goes limp between "
+        "moves, which is what stops a stationary servo hunting.",
+    )
+    parser.add_argument(
         "--keep-torque",
         action="store_true",
         dest="hold_torque",
@@ -344,7 +359,10 @@ def main() -> None:
                 _travel(bus, axes, step.goals, step.speed, stopping, acc=step.acc)
                 resting.update(step.goals)
                 if step.alive:
-                    _breathe(bus, axes, dict(resting), step.dwell, stopping)
+                    _breathe(
+                        bus, axes, dict(resting), step.dwell, stopping,
+                        limp=not args.stiff,
+                    )
                 else:
                     _dwell(step.dwell, stopping)
 

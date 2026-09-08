@@ -33,6 +33,7 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
 | `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
 | `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
+| `jitter_test` | no | Measures how much a held position actually moves |
 | `apply_limits` | no | Writes the calibrated limits into the servos' own EEPROM |
 | `idle_motion` | no | Natural head movement inside the calibrated range |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
@@ -292,6 +293,26 @@ Ranked by what actually causes it:
 
 4. **Backlash.** Mechanical, and worse under load, so it varies by sector as
    the head's weight shifts.
+
+## Measuring jitter
+
+Before tuning anything, get a number:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.jitter_test --id 1
+```
+
+It holds the servo's zero and samples the position for six seconds with torque
+on, then six with torque off, reporting peak-to-peak and RMS movement for each.
+
+| Result | Meaning |
+| --- | --- |
+| Under 3 ticks driven | Not jittering; that is encoder resolution |
+| Driven noisy, limp steady | The position loop is hunting. Tune it |
+| Noisy both ways | Mechanical or electrical. Tuning will not help |
+
+The third case means backlash, a loose horn, or supply sag, and the voltage and
+fault counts printed alongside say which.
 
 ## Jitter while stationary
 
