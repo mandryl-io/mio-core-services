@@ -195,8 +195,21 @@ start at their recorded zeros. Jogging is **clamped to the calibrated limits**
 from `servo_zeros.json`, so it cannot be driven into a stop — this is the safest
 way to exercise the mechanism and watch for jitter.
 
-`--free` ignores the limits and allows the full 0-4095 travel. `--step 2` for
-finer motion, `--keep-torque` to stay energised on exit.
+`--free` ignores the limits and allows the full 0-4095 travel. `--speed` sets
+the jog velocity in ticks/s (default 600, about 53 deg/s), `--keep-torque` to
+stay energised on exit.
+
+### Why the teleop tools jog by velocity
+
+Holding a key sends **one** goal, at the travel limit in that direction, and
+lets the servo's own speed control cruise there. Releasing it reads the current
+position and stops on it.
+
+The obvious alternative — nudging the goal a few ticks every 20 ms — makes the
+servo accelerate and decelerate fifty times a second. It never reaches a steady
+speed, and the result buzzes, worst on a loaded axis. `zero_servos`,
+`calibrate_joint` and `calibrate_range` still step, because there precision
+matters more than smoothness and the moves are short.
 
 ## Jitter while stationary
 

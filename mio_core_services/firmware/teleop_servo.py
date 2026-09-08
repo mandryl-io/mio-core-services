@@ -66,16 +66,10 @@ def main() -> None:
         help="JSON file of servo id -> position. Resets --id to that position before teleop.",
     )
     parser.add_argument(
-        "--step",
-        type=int,
-        default=5,
-        help="Ticks added per jog tick while a key is held (4096 = 360°).",
-    )
-    parser.add_argument(
         "--speed",
         type=int,
-        help="Tracking speed. Defaults to match the jog rate, which is "
-        "what keeps jogging smooth.",
+        default=600,
+        help="Jog velocity in ticks/s while a key is held (4096 = 360°).",
     )
     parser.add_argument(
         "--keep-torque",
@@ -84,9 +78,8 @@ def main() -> None:
         help="Leave torque engaged when this exits, instead of going limp.",
     )
     args = parser.parse_args()
-    if args.step < 1:
-        raise SystemExit("--step must be >= 1")
-    speed = args.speed or jog.jog_speed_for(args.step)
+    if args.speed < 1:
+        raise SystemExit("--speed must be >= 1")
     if not sys.stdin.isatty():
         raise SystemExit("Need a TTY for arrow-key teleop.")
 
@@ -102,15 +95,21 @@ def main() -> None:
                 position = bus.position(servo_id=args.id)
             except TimeoutError as exc:
                 raise SystemExit(str(exc)) from exc
-        bus.prepare(servo_id=args.id, speed=speed, acc=50)
+        minimum, maximum = 0, POSITION_MAX
+        if args.zeros:
+            minimum, maximum = zeros[args.id].min, zeros[args.id].max
+        driver = jog.VelocityJog(
+            bus, args.id, minimum, maximum, args.speed, acc=30
+        )
         bus.set_goal(position, servo_id=args.id)
         sys.stdout.write(
             f"Teleop servo {args.id} on {args.port} from {position}. "
-            "Hold left/right to jog, q quits.\r\n"
+            f"Hold left/right to jog at {args.speed} ticks/s, q quits.\r\n"
         )
         sys.stdout.flush()
         direction = 0
         last_hold = 0.0
+        last_report = 0.0
         with RawTerminal() as terminal:
             while True:
                 key = terminal.poll_key(JOG_DT)
@@ -131,10 +130,10 @@ def main() -> None:
                     break
                 if now - last_hold > HOLD_DT:
                     direction = 0
-                    continue
-                position = max(0, min(POSITION_MAX, position + direction * args.step))
-                bus.set_goal(position, servo_id=args.id)
-                _status(f"servo {args.id} -> {position}")
+                driver.steer(direction)
+                if now - last_report > 0.1:
+                    last_report = now
+                    _status(f"servo {args.id} -> {driver.read()}")
 
     sys.stdout.write("\r\nDone.\r\n")
 

@@ -16,3 +16,53 @@ MIN_JOG_SPEED = 50
 def jog_speed_for(step: int) -> int:
     """Tracking speed matched to how fast jogging advances the goal."""
     return max(MIN_JOG_SPEED, round(step / JOG_DT * JOG_SPEED_HEADROOM))
+
+
+class VelocityJog:
+    """Jog by commanding travel toward a limit, rather than micro-stepping.
+
+    Re-issuing a goal every JOG_DT makes the servo accelerate and decelerate
+    fifty times a second, which buzzes and never reaches a steady speed. Here a
+    held key sends one goal at the limit in that direction and lets the servo's
+    own speed control cruise; releasing it stops at wherever it actually is.
+    """
+
+    def __init__(self, bus, servo_id, minimum, maximum, speed, acc=30):
+        self.bus = bus
+        self.servo_id = servo_id
+        self.minimum = minimum
+        self.maximum = maximum
+        self.speed = speed
+        self.bus.prepare(servo_id=servo_id, speed=speed, acc=acc)
+        self._direction = 0
+
+    @property
+    def direction(self) -> int:
+        return self._direction
+
+    def steer(self, direction: int) -> None:
+        """Send a goal only when the direction actually changes."""
+        if direction == self._direction:
+            return
+        self._direction = direction
+        if direction == 0:
+            self.stop()
+        else:
+            goal = self.maximum if direction > 0 else self.minimum
+            self.bus.set_goal(goal, servo_id=self.servo_id)
+
+    def stop(self) -> int:
+        """Halt at the current position and return it."""
+        try:
+            position = self.bus.position(servo_id=self.servo_id)
+        except TimeoutError:
+            return -1
+        self.bus.set_goal(position, servo_id=self.servo_id)
+        self._direction = 0
+        return position
+
+    def read(self) -> int:
+        try:
+            return self.bus.position(servo_id=self.servo_id)
+        except TimeoutError:
+            return -1
