@@ -54,8 +54,10 @@ uv run --frozen python -m mio_core_services.firmware.calibrate_joint \
 It:
 
 1. Drives every other servo in the file to its recorded zero and holds it
-2. Parks the target shaft at its electrical centre (2048) so the part goes on
-   square, then waits for **Enter** while you fit it
+2. Swings the bare shaft to both extremes and returns to its electrical
+   centre (2048), so you can see the centre really is halfway, then waits for
+   **Enter** while you fit the part square to it. `--skip-prove` parks without
+   the swing
 3. Jogs to the joint's **true centre** — Enter records it as the zero
 4. Jogs to **maximum up**, Enter; returns to centre
 5. Jogs to **maximum down**, Enter

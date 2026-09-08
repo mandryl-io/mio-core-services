@@ -133,6 +133,11 @@ def main() -> None:
         default=CENTER_POSITION,
         help="Where to park the shaft while the part is fitted.",
     )
+    parser.add_argument(
+        "--skip-prove",
+        action="store_true",
+        help="Park at the centre without the full-travel swing first.",
+    )
     parser.add_argument("--step", type=int, default=4, help="Ticks per jog tick.")
     parser.add_argument("--jog-speed", type=int, default=800)
     parser.add_argument("--speed", type=int, default=300, help="Sweep speed.")
@@ -165,7 +170,16 @@ def main() -> None:
                   f"at {_settle(bus, servo_id, zero)}")
 
         bus.prepare(servo_id=args.id, speed=args.jog_speed, acc=30)
-        parked = _settle(bus, args.id, args.centre)
+        if args.skip_prove:
+            parked = _settle(bus, args.id, args.centre)
+        else:
+            # Swing the bare shaft end to end so the centre is visibly halfway.
+            print(f"Proving servo {args.id}: full travel both ways, then centre.")
+            for label, goal in (("one end", 0), ("other end", POSITION_MAX)):
+                print(f"  {label} {goal} -> at {_settle(bus, args.id, goal)}")
+                time.sleep(0.4)
+            parked = _settle(bus, args.id, args.centre)
+            print(f"  centre {args.centre} -> at {parked}")
         print(f"Servo {args.id} parked at {parked} (torque on).\n")
 
         with RawTerminal() as terminal:
