@@ -1,0 +1,25 @@
+[Unit]
+Description=Mio head motion
+# The bus servos hang off the GPIO UART, so wait for the device rather than
+# for the network. This deliberately has no network dependency: it must come
+# up with no wifi, no SSH and nobody logged in.
+After=dev-ttyAMA0.device
+Wants=dev-ttyAMA0.device
+
+[Service]
+Type=simple
+User=mio
+WorkingDirectory=/home/mio/mio-core-services-waveshare
+# The venv interpreter directly, not uv: no dependency resolution, no network,
+# nothing to fail before the head moves.
+ExecStart=/home/mio/mio-core-services-waveshare/.venv/bin/python -m mio_core_services.firmware.idle_motion
+# idle_motion centres and releases torque on SIGTERM; give it time to finish.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

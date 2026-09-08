@@ -168,6 +168,38 @@ class Step:
     alive: bool = False
 
 
+def _intro(
+    bus: STS3215Bus,
+    axes: dict[int, Axis],
+    full: dict[int, Axis],
+    order: tuple[Axis, ...],
+    stopping: Stopping,
+    centre_speed: int,
+    sweep_speed: int,
+) -> None:
+    """Wake up: centre very slowly, then show each axis its whole travel.
+
+    Run at power-on this doubles as a self-test -- if a joint binds or a horn
+    has shifted, it shows here, slowly, rather than at speed mid-behaviour.
+    """
+    zeros = {axis.servo_id: axis.zero for axis in order}
+    print(f"Centring slowly at speed {centre_speed}...")
+    _travel(bus, axes, zeros, centre_speed, stopping, acc=6, timeout=40.0)
+    if stopping.requested:
+        return
+
+    for axis in order:
+        name = "yaw" if axis is order[0] else "pitch"
+        wide = full[axis.servo_id]
+        print(f"Sweeping {name} (servo {axis.servo_id}) {wide.low}-{wide.high}...")
+        for goal in (wide.low, wide.high, wide.zero):
+            if stopping.requested:
+                return
+            _travel(bus, full, {axis.servo_id: goal}, sweep_speed, stopping,
+                    acc=10, timeout=40.0)
+    print("Range of motion complete.\n")
+
+
 def _glance(yaw: Axis, pitch: Axis) -> list[Step]:
     """Look somewhere else, briskly, and hold it. One command."""
     return [
@@ -296,6 +328,24 @@ def main() -> None:
         help="Skip the hardware limit check. Not advised.",
     )
     parser.add_argument(
+        "--no-intro",
+        action="store_true",
+        dest="skip_intro",
+        help="Skip the slow centring and range-of-motion sweep at startup.",
+    )
+    parser.add_argument(
+        "--centre-speed",
+        type=int,
+        default=70,
+        help="Speed for the initial centring. Deliberately very slow.",
+    )
+    parser.add_argument(
+        "--sweep-speed",
+        type=int,
+        default=180,
+        help="Speed for the startup range-of-motion sweep.",
+    )
+    parser.add_argument(
         "--stiff",
         action="store_true",
         help="Hold torque through pauses. By default it goes limp between "
@@ -354,8 +404,23 @@ def main() -> None:
                 )
             print("\nHardware limits verified.")
 
-        print("Centring...\n")
-        _travel(bus, axes, {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero}, 350, stopping)
+        if args.skip_intro:
+            print("Centring...\n")
+            _travel(
+                bus, axes,
+                {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero},
+                350, stopping,
+            )
+        else:
+            # The sweep uses the calibrated ends, not the inset working range.
+            full = {
+                axis.servo_id: Axis.build(axis.servo_id, zeros[axis.servo_id], 0.0)
+                for axis in (yaw, pitch)
+            }
+            _intro(
+                bus, axes, full, (yaw, pitch), stopping,
+                args.centre_speed, args.sweep_speed,
+            )
 
         deadline = time.monotonic() + args.seconds if args.seconds else None
         moves = 0
