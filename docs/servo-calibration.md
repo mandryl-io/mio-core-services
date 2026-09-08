@@ -34,7 +34,8 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
-| `teleop_servo` / `system_teleop` | **yes** | Live arrow-key control |
+| `teleop_servo` | **yes** | Live arrow-key control of one servo |
+| `system_teleop` | **yes** | Live control of both axes, clamped to the saved limits |
 
 `set_zero`, `calibrate_joint`, `calibrate_range`, and `check_limits` **merge** into
 `servo_zeros.json`; `zero_servos` rewrites it wholesale, so it will drop servos
@@ -182,6 +183,20 @@ from mio_core_services.firmware.sts3215 import STS3215Bus
 with STS3215Bus(release_ids=[1, 2]):
     pass"
 ```
+
+## Driving both axes
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.system_teleop
+```
+
+Left/right (or `a`/`d`) drives yaw, up/down (or `w`/`s`) drives pitch, and both
+start at their recorded zeros. Jogging is **clamped to the calibrated limits**
+from `servo_zeros.json`, so it cannot be driven into a stop — this is the safest
+way to exercise the mechanism and watch for jitter.
+
+`--free` ignores the limits and allows the full 0-4095 travel. `--step 2` for
+finer motion, `--keep-torque` to stay energised on exit.
 
 ## Jitter while stationary
 

@@ -76,7 +76,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--zeros",
-        help="JSON file of servo id -> zero/min/max. Resets --id-1/--id-2 and clamps jog to limits.",
+        default="servo_zeros.json",
+        help="JSON file of servo id -> zero/min/max. Starts at each zero and "
+        "clamps jogging to the calibrated limits.",
+    )
+    parser.add_argument(
+        "--free",
+        action="store_true",
+        help="Ignore the zeros file and allow the full 0-4095 travel.",
     )
     parser.add_argument(
         "--step",
@@ -109,7 +116,14 @@ def main() -> None:
     with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
         min_1, max_1 = 0, POSITION_MAX
         min_2, max_2 = 0, POSITION_MAX
-        if args.zeros:
+        # Default to the calibrated limits; unclamped travel has to be asked for.
+        use_zeros = bool(args.zeros) and not args.free
+        if use_zeros and not os.path.exists(args.zeros):
+            raise SystemExit(
+                f"{args.zeros} not found. Calibrate first, or pass --free to "
+                "jog the full range."
+            )
+        if use_zeros:
             zeros = load_zeros(args.zeros)
             for servo_id in (args.id_1, args.id_2):
                 if servo_id not in zeros:
