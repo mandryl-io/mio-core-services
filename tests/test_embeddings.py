@@ -11,6 +11,7 @@ from tests.test_chroma import MockEmbedder
 def test_sentence_transformer_embedder_returns_numpy_matrix(monkeypatch):
     model = Mock()
     model.encode.return_value = np.ones((2, 384), dtype=np.float32)
+    model.get_sentence_embedding_dimension.return_value = 384
     monkeypatch.setattr(
         "mio_core_services.memory.embeddings._sentence_transformer",
         lambda model_name: model,
@@ -24,9 +25,11 @@ def test_sentence_transformer_embedder_returns_numpy_matrix(monkeypatch):
 
 
 def test_sentence_transformer_embedder_empty_texts(monkeypatch):
+    model = Mock()
+    model.get_sentence_embedding_dimension.return_value = 384
     monkeypatch.setattr(
         "mio_core_services.memory.embeddings._sentence_transformer",
-        lambda model_name: Mock(),
+        lambda model_name: model,
     )
     embeddings = SentenceTransformerEmbedder().embed([])
     assert embeddings.shape == (0, 384)

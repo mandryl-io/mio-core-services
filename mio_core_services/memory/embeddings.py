@@ -1,14 +1,27 @@
 from abc import abstractmethod
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 from sentence_transformers import SentenceTransformer
 
 from mio_core_services.constants import (
     DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_EMBEDDING_MODEL,
 )
+
+# Loading a sentence-transformer is slow and the models are stateless, so
+# every embedder sharing a model name shares one instance.
+_MODEL_CACHE: dict[str, Any] = {}
+
+
+def _sentence_transformer(model_name: str) -> Any:
+    model = _MODEL_CACHE.get(model_name)
+    if model is None:
+        model = SentenceTransformer(model_name)
+        _MODEL_CACHE[model_name] = model
+    return model
 
 
 class MioTextEmbedder(BaseModel):
@@ -28,12 +41,21 @@ class MioTextEmbedder(BaseModel):
 
 
 class SentenceTransformerEmbedder(MioTextEmbedder):
-    """Local sentence-transformers backend."""
+    """Local sentence-transformers backend with a process-wide model cache."""
 
     model_name: str = DEFAULT_EMBEDDING_MODEL
     dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS
 
-    _model: SentenceTransformer
+    _model: Any = PrivateAttr()
+
+    def model_post_init(self, __context: Any) -> None:
+        self._model = _sentence_transformer(self.model_name)
+        model_dimensions = int(self._model.get_sentence_embedding_dimension())
+        if model_dimensions != self.dimensions:
+            raise ValueError(
+                f"{self.model_name} produces {model_dimensions}-d vectors, "
+                f"but dimensions={self.dimensions}"
+            )
 
     def embed(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:
