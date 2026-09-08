@@ -72,6 +72,29 @@ def main() -> None:
         help="Jog velocity in ticks/s while a key is held (4096 = 360°).",
     )
     parser.add_argument(
+        "--acc",
+        type=int,
+        default=60,
+        help="Acceleration. Higher stops more crisply with less overshoot.",
+    )
+    parser.add_argument(
+        "--stiff",
+        action="store_true",
+        help="Keep torque on while stopped. Off by default, because a servo "
+        "holding a load the mechanism already supports only hunts.",
+    )
+    parser.add_argument(
+        "--limp-after",
+        type=float,
+        default=0.4,
+        help="Seconds of stillness before torque is cut.",
+    )
+    parser.add_argument(
+        "--invert-x",
+        action="store_true",
+        help="Swap which way left/right drives.",
+    )
+    parser.add_argument(
         "--keep-torque",
         action="store_true",
         dest="hold_torque",
@@ -99,7 +122,13 @@ def main() -> None:
         if args.zeros:
             minimum, maximum = zeros[args.id].min, zeros[args.id].max
         driver = jog.VelocityJog(
-            bus, args.id, minimum, maximum, args.speed, acc=30
+            bus,
+            args.id,
+            minimum,
+            maximum,
+            args.speed,
+            acc=args.acc,
+            limp_after=None if args.stiff else args.limp_after,
         )
         bus.set_goal(position, servo_id=args.id)
         sys.stdout.write(
@@ -107,6 +136,7 @@ def main() -> None:
             f"Hold left/right to jog at {args.speed} ticks/s, q quits.\r\n"
         )
         sys.stdout.flush()
+        x_sign = -1 if args.invert_x else 1
         direction = 0
         last_hold = 0.0
         last_report = 0.0
@@ -117,10 +147,10 @@ def main() -> None:
                 done = key in QUIT_KEYS
                 while key is not None and not done:
                     if key in LEFT_KEYS:
-                        direction = -1
+                        direction = -x_sign
                         last_hold = now
                     elif key in RIGHT_KEYS:
-                        direction = 1
+                        direction = x_sign
                         last_hold = now
                     elif key in QUIT_KEYS:
                         done = True
@@ -131,6 +161,7 @@ def main() -> None:
                 if now - last_hold > HOLD_DT:
                     direction = 0
                 driver.steer(direction)
+                driver.tick(now)
                 if now - last_report > 0.1:
                     last_report = now
                     _status(f"servo {args.id} -> {driver.read()}")

@@ -92,6 +92,29 @@ def main() -> None:
         help="Jog velocity in ticks/s while a key is held (4096 = 360°).",
     )
     parser.add_argument(
+        "--acc",
+        type=int,
+        default=60,
+        help="Acceleration. Higher stops more crisply with less overshoot.",
+    )
+    parser.add_argument(
+        "--stiff",
+        action="store_true",
+        help="Keep torque on while stopped. Off by default, because a servo "
+        "holding a load the mechanism already supports only hunts.",
+    )
+    parser.add_argument(
+        "--limp-after",
+        type=float,
+        default=0.4,
+        help="Seconds of stillness before torque is cut.",
+    )
+    parser.add_argument(
+        "--invert-x",
+        action="store_true",
+        help="Swap which way left/right drives.",
+    )
+    parser.add_argument(
         "--keep-torque",
         action="store_true",
         dest="hold_torque",
@@ -133,11 +156,14 @@ def main() -> None:
                 position_2 = bus.position(servo_id=args.id_2)
             except TimeoutError as exc:
                 raise SystemExit(str(exc)) from exc
+        limp_after = None if args.stiff else args.limp_after
         driver_1 = jog.VelocityJog(
-            bus, args.id_1, min_1, max_1, args.speed, acc=30
+            bus, args.id_1, min_1, max_1, args.speed,
+            acc=args.acc, limp_after=limp_after,
         )
         driver_2 = jog.VelocityJog(
-            bus, args.id_2, min_2, max_2, args.speed, acc=30
+            bus, args.id_2, min_2, max_2, args.speed,
+            acc=args.acc, limp_after=limp_after,
         )
         bus.set_goals({args.id_1: position_1, args.id_2: position_2})
         sys.stdout.write(
@@ -148,6 +174,7 @@ def main() -> None:
             "q quits.\r\n"
         )
         sys.stdout.flush()
+        x_sign = -1 if args.invert_x else 1
         direction_h = 0
         direction_v = 0
         last_hold_h = 0.0
@@ -160,10 +187,10 @@ def main() -> None:
                 done = key in QUIT_KEYS
                 while key is not None and not done:
                     if key in LEFT_KEYS:
-                        direction_h = -1
+                        direction_h = -x_sign
                         last_hold_h = now
                     elif key in RIGHT_KEYS:
-                        direction_h = 1
+                        direction_h = x_sign
                         last_hold_h = now
                     elif key in DOWN_KEYS:
                         direction_v = -1
@@ -183,6 +210,8 @@ def main() -> None:
                     direction_v = 0
                 driver_1.steer(direction_h)
                 driver_2.steer(direction_v)
+                driver_1.tick(now)
+                driver_2.tick(now)
                 if now - last_report > 0.1:
                     last_report = now
                     _status(
