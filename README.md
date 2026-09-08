@@ -55,9 +55,24 @@ uv run --frozen python -m mio_core_services.firmware.read_servo \
   --port /dev/ttyAMA0 --baudrate 115200 --id 1 --diagnose
 ```
 
-New STS3215 servos normally share ID 1. Leave the first (tilt) servo as ID 1.
-Power off, connect only the second (pan) servo, power on, verify it as ID 1,
-then assign it ID 2:
+## Axis assignment
+
+| ID | Axis | Joint |
+| --- | --- | --- |
+| 1 | Yaw | Neck |
+| 2 | Pitch | Head |
+
+Scan the bus before assuming anything — servos are not always factory-fresh,
+and this reports every ID that answers along with its position:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.scan_servos
+```
+
+New STS3215 servos normally share ID 1, so if both report ID 1 they must be
+separated before they can share a bus. Leave the neck (yaw) servo as ID 1.
+Power off, connect only the head (pitch) servo, power on, verify it, then
+assign it ID 2:
 
 ```bash
 uv run --frozen python -m mio_core_services.firmware.encode_servo_id \

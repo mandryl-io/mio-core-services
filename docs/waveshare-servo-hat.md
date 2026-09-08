@@ -23,6 +23,22 @@ uv run --frozen python -m mio_core_services.firmware.read_servo \
   --port /dev/ttyAMA0 --baudrate 115200 --id 1 --diagnose
 ```
 
+## Servo bus layout
+
+| ID | Axis | Joint | Notes |
+| --- | --- | --- | --- |
+| 1 | Yaw | Neck | Confirmed by jogging and observing the mechanism |
+| 2 | Pitch | Head | Shipped already set to ID 2; no reassignment was needed |
+
+Do not assume a servo is factory-fresh at ID 1. Scan the bus first:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.scan_servos
+```
+
+Two servos both answering as ID 1 cannot share a bus — they reply to every
+packet simultaneously. Separate them with `encode_servo_id` before chaining.
+
 ## One-time setup
 
 A factory-fresh HAT will not work over the GPIO UART. Both steps below are
@@ -195,12 +211,24 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && ~/.local/bin/u
 Position reads draw far less current than motion. Check the HAT's external
 supply before suspecting the command path.
 
-## Known gaps in the firmware CLIs
+## Swapping servos with the Pi running
 
-`move_servo`, `sweep_servos`, `zero_servos`, and `teleop_servo` accept `--port`
-but not `--baudrate`, so they construct the bus at `DEFAULT_BAUDRATE`
-(1,000,000) and will time out on this HAT, which needs 115200. Only
-`read_servo` and `encode_servo_id` take `--baudrate` today.
+The HAT powers the Pi from the same supply, so cutting servo power drops the
+Pi too. To swap a servo without a reboot, power the Pi from its own USB-C
+supply and switch off only the HAT's input.
+
+Hot-swapping the three-wire connector while the bus is live usually works but
+risks the servo's controller through inrush or a momentarily bridged pin.
+Release torque first, and pull the connector straight out:
+
+```bash
+uv run --frozen python -c "
+from mio_core_services.firmware.sts3215 import STS3215Bus
+with STS3215Bus() as b: b.enable_torque(1, False)"
+```
+
+After any swap, scan rather than assuming an ID — a silent `--id 1` read
+usually means the servo is on a different ID, not that it is broken.
 
 ## Debugging log
 
