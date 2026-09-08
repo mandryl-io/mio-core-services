@@ -27,8 +27,20 @@ REGISTERS = {
 }
 
 # A servo that buzzes while holding is correcting errors smaller than it can
-# usefully resolve. Widening the dead zone and easing P settles it.
-CALM_PRESET = {"cw-dead-zone": 4, "ccw-dead-zone": 4, "p": 24}
+# usefully resolve. Widening the dead zone and easing P settles it. Punch is
+# the minimum drive applied to any correction, so a raised one makes every
+# small correction overshoot -- back at factory zero it cannot.
+CALM_PRESET = {"cw-dead-zone": 4, "ccw-dead-zone": 4, "p": 24, "punch": 0}
+
+# For a loaded axis that still hunts: a wider band, softer correction, and more
+# damping. Coarser holding is the trade.
+DAMPED_PRESET = {
+    "cw-dead-zone": 10,
+    "ccw-dead-zone": 10,
+    "p": 16,
+    "d": 48,
+    "punch": 0,
+}
 
 
 def _show(bus: STS3215Bus, servo_id: int) -> None:
@@ -59,6 +71,11 @@ def main() -> None:
         help=f"Apply the anti-jitter preset: {CALM_PRESET}.",
     )
     parser.add_argument(
+        "--damped",
+        action="store_true",
+        help=f"Stronger preset for an axis that still hunts: {DAMPED_PRESET}.",
+    )
+    parser.add_argument(
         "--factory",
         action="store_true",
         help="Restore the factory values for every register listed.",
@@ -68,6 +85,8 @@ def main() -> None:
     wanted: dict[str, int] = {}
     if args.calm:
         wanted.update(CALM_PRESET)
+    if args.damped:
+        wanted.update(DAMPED_PRESET)
     if args.factory:
         wanted.update({name: spec[2] for name, spec in REGISTERS.items()})
     if args.dead_zone is not None:

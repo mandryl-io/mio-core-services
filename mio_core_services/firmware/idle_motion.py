@@ -49,12 +49,16 @@ class Axis:
     def clamp(self, position: int) -> int:
         return max(self.low, min(self.high, position))
 
-    def sample(self, spread: float) -> int:
-        """A position near zero, spread scaling how far it typically strays."""
-        below = self.zero - self.low
-        above = self.high - self.zero
+    def sample(self, spread: float, floor: float = 0.0) -> int:
+        """A position near zero. spread scales the typical stray, floor the least.
+
+        Without a floor a gaussian keeps returning near-zero offsets, which look
+        like twitches rather than decisions.
+        """
         offset = random.gauss(0.0, spread)
-        reach = above if offset >= 0 else below
+        if floor and abs(offset) < floor:
+            offset = floor if offset >= 0 else -floor
+        reach = (self.high - self.zero) if offset >= 0 else (self.zero - self.low)
         return self.clamp(self.zero + round(offset * reach))
 
 
@@ -120,7 +124,7 @@ def _breathe(
     """Hold a pose, drifting a few ticks now and then so it does not look frozen."""
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline and not stopping.requested:
-        _dwell(random.uniform(0.9, 1.8), stopping)
+        _dwell(random.uniform(2.5, 5.0), stopping)
         if stopping.requested or time.monotonic() >= deadline:
             break
         drift = {
@@ -142,86 +146,99 @@ class Step:
 
 
 def _glance(yaw: Axis, pitch: Axis) -> list[Step]:
-    """Look somewhere nearby and hold it."""
-    goals = {yaw.servo_id: yaw.sample(0.24), pitch.servo_id: pitch.sample(0.2)}
-    return [Step(goals, random.randint(260, 420), 25, random.uniform(1.8, 4.5), True)]
+    """Look somewhere else, briskly, and hold it. One command."""
+    return [
+        Step(
+            {
+                yaw.servo_id: yaw.sample(0.3, floor=0.12),
+                pitch.servo_id: pitch.sample(0.28, floor=0.14),
+            },
+            random.randint(520, 780),
+            45,
+            random.uniform(2.2, 5.0),
+            True,
+        )
+    ]
+
+
+def _look(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Something caught its attention: turn to it quickly and stay there."""
+    return [
+        Step(
+            {
+                yaw.servo_id: yaw.sample(0.62, floor=0.3),
+                pitch.servo_id: pitch.sample(0.45, floor=0.2),
+            },
+            random.randint(900, 1250),
+            75,
+            random.uniform(1.6, 4.0),
+            True,
+        )
+    ]
 
 
 def _tilt(yaw: Axis, pitch: Axis) -> list[Step]:
-    """The curious head-cock: turn a little, lift the chin, hold it a while."""
+    """The curious head-cock: turn, lift the chin, and hold it a good while."""
     side = random.choice((-1, 1))
-    goals = {
-        yaw.servo_id: yaw.clamp(yaw.zero + side * random.randint(90, 220)),
-        pitch.servo_id: pitch.clamp(pitch.zero + random.randint(40, 110)),
-    }
-    return [Step(goals, random.randint(200, 320), 18, random.uniform(3.0, 7.0), True)]
+    reach = (yaw.high - yaw.zero) if side > 0 else (yaw.zero - yaw.low)
+    return [
+        Step(
+            {
+                yaw.servo_id: yaw.clamp(
+                    yaw.zero + side * round(reach * random.uniform(0.18, 0.42))
+                ),
+                pitch.servo_id: pitch.sample(0.4, floor=0.25),
+            },
+            random.randint(380, 560),
+            30,
+            random.uniform(3.5, 8.0),
+            True,
+        )
+    ]
 
 
 def _nod(yaw: Axis, pitch: Axis) -> list[Step]:
-    """Two or three quick dips of the chin, then settle."""
-    steps: list[Step] = []
-    depth = random.randint(70, 150)
-    for _ in range(random.randint(2, 3)):
-        steps.append(
-            Step({pitch.servo_id: pitch.clamp(pitch.zero - depth)}, 850, 70, 0.12)
-        )
-        steps.append(
-            Step({pitch.servo_id: pitch.clamp(pitch.zero + depth // 2)}, 850, 70, 0.12)
-        )
-    steps.append(
-        Step({pitch.servo_id: pitch.zero}, 420, 30, random.uniform(1.2, 2.8), True)
-    )
-    return steps
-
-
-def _perk(yaw: Axis, pitch: Axis) -> list[Step]:
-    """Something caught its attention: snap round, then relax back."""
-    goals = {yaw.servo_id: yaw.sample(0.65), pitch.servo_id: pitch.sample(0.4)}
+    """A single decisive dip of the chin, then back. Three commands."""
+    down = pitch.clamp(pitch.zero - round((pitch.zero - pitch.low) * 0.7))
+    up = pitch.clamp(pitch.zero + round((pitch.high - pitch.zero) * 0.3))
     return [
-        Step(goals, random.randint(750, 1050), 80, random.uniform(0.6, 1.6)),
+        Step({pitch.servo_id: down}, 1100, 90, 0.14),
+        Step({pitch.servo_id: up}, 1100, 90, 0.14),
         Step(
-            {yaw.servo_id: yaw.sample(0.3), pitch.servo_id: pitch.sample(0.2)},
-            300,
-            22,
-            random.uniform(1.5, 3.5),
+            {pitch.servo_id: pitch.sample(0.2, floor=0.1)},
+            600,
+            45,
+            random.uniform(2.0, 4.5),
             True,
         ),
     ]
 
 
-def _scan(yaw: Axis, pitch: Axis) -> list[Step]:
-    """Sweep slowly across, pausing as if reading the room."""
-    steps: list[Step] = []
-    direction = random.choice((-1, 1))
-    for fraction in (0.3, 0.65, 1.0):
-        reach = (yaw.high - yaw.zero) if direction > 0 else (yaw.zero - yaw.low)
-        target = yaw.clamp(yaw.zero + direction * round(reach * fraction * 0.8))
-        steps.append(
-            Step(
-                {yaw.servo_id: target, pitch.servo_id: pitch.sample(0.15)},
-                random.randint(160, 260),
-                15,
-                random.uniform(1.0, 2.4),
-                True,
-            )
-        )
-    return steps
-
-
 def _rest(yaw: Axis, pitch: Axis) -> list[Step]:
-    """Settle near centre and stay there for a good while."""
-    goals = {yaw.servo_id: yaw.sample(0.1), pitch.servo_id: pitch.sample(0.1)}
-    return [Step(goals, random.randint(180, 300), 15, random.uniform(4.0, 9.0), True)]
+    """Settle off-centre and stay there. Never square on."""
+    return [
+        Step(
+            {
+                yaw.servo_id: yaw.sample(0.18, floor=0.08),
+                pitch.servo_id: pitch.sample(0.22, floor=0.12),
+            },
+            random.randint(300, 460),
+            25,
+            random.uniform(5.0, 11.0),
+            True,
+        )
+    ]
 
 
-# Weighted so nodding and resting dominate, and nothing repeats predictably.
+# Nodding is punctuation, not the main event. There is deliberately no
+# horizontal sweep: panning across at a fixed pitch reads as surveillance,
+# and every behaviour moves pitch whenever it moves yaw.
 BEHAVIOURS = (
-    (_glance, 26),
-    (_nod, 20),
-    (_rest, 16),
-    (_tilt, 14),
-    (_scan, 12),
-    (_perk, 12),
+    (_glance, 32),
+    (_look, 26),
+    (_tilt, 22),
+    (_rest, 12),
+    (_nod, 8),
 )
 
 
