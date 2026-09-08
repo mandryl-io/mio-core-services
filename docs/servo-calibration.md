@@ -238,8 +238,21 @@ uv run --frozen python -m mio_core_services.firmware.apply_limits
 uv run --frozen python -m mio_core_services.firmware.idle_motion
 ```
 
-Generates gaze shifts rather than a sweep: mostly small glances near centre,
-occasionally a wider look, sometimes a nod, with varied speed and dwell.
+Runs continuously, picking from six behaviours rather than sweeping:
+
+| Behaviour | Share | What it does |
+| --- | --- | --- |
+| glance | 23% | Look somewhere nearby and hold it |
+| nod | 20% | Two or three quick dips of the chin, then settle |
+| rest | 17% | Settle near centre for 4-9 seconds |
+| tilt | 15% | The curious head-cock: turn a little, lift the chin, hold |
+| scan | 13% | Sweep slowly across in stages, pausing as if reading the room |
+| perk | 13% | Snap round at something, then relax back |
+
+A behaviour never repeats immediately, and each holds its pose with a slow
+few-tick drift so it reads as alive rather than frozen. Acceleration is set per
+step — 15 for a slow scan, 80 for a perk — which is what makes the difference
+between smooth and mechanical.
 
 Three layers keep it inside the range, so no single mistake can drive the
 mechanism into a stop:

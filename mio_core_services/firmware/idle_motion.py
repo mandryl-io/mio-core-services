@@ -76,6 +76,7 @@ def _travel(
     goals: dict[int, int],
     speed: int,
     stopping: Stopping,
+    acc: int = 30,
     timeout: float = 6.0,
 ) -> None:
     safe = {}
@@ -87,7 +88,7 @@ def _travel(
         safe[servo_id] = clamped
 
     for servo_id in safe:
-        bus.prepare(servo_id=servo_id, speed=speed, acc=50)
+        bus.prepare(servo_id=servo_id, speed=speed, acc=acc)
     bus.set_goals(safe)
 
     deadline = time.monotonic() + timeout
@@ -109,24 +110,127 @@ def _dwell(seconds: float, stopping: Stopping) -> None:
         time.sleep(min(POLL, max(0.0, deadline - time.monotonic())))
 
 
-def _next_move(yaw: Axis, pitch: Axis) -> tuple[dict[int, int], int, float]:
-    """Pick the next gaze, how fast to get there, and how long to hold it."""
-    roll = random.random()
-    if roll < 0.55:
-        # A small glance, the resting behaviour.
-        goals = {yaw.servo_id: yaw.sample(0.22), pitch.servo_id: pitch.sample(0.18)}
-        return goals, random.randint(280, 480), random.uniform(1.2, 3.4)
-    if roll < 0.78:
-        # A wider look, quicker, as if something caught its attention.
-        goals = {yaw.servo_id: yaw.sample(0.6), pitch.servo_id: pitch.sample(0.35)}
-        return goals, random.randint(600, 950), random.uniform(0.8, 2.2)
-    if roll < 0.9:
-        # Settle back toward centre.
-        goals = {yaw.servo_id: yaw.sample(0.08), pitch.servo_id: pitch.sample(0.08)}
-        return goals, random.randint(260, 420), random.uniform(1.5, 3.5)
-    # A nod: pitch only, quick, returning immediately after.
-    goals = {pitch.servo_id: pitch.sample(0.5)}
-    return goals, random.randint(700, 1000), random.uniform(0.25, 0.5)
+def _breathe(
+    bus: STS3215Bus,
+    axes: dict[int, Axis],
+    resting: dict[int, int],
+    seconds: float,
+    stopping: Stopping,
+) -> None:
+    """Hold a pose, drifting a few ticks now and then so it does not look frozen."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and not stopping.requested:
+        _dwell(random.uniform(0.9, 1.8), stopping)
+        if stopping.requested or time.monotonic() >= deadline:
+            break
+        drift = {
+            servo_id: axes[servo_id].clamp(position + random.randint(-6, 6))
+            for servo_id, position in resting.items()
+        }
+        _travel(bus, axes, drift, 90, stopping, acc=10, timeout=1.5)
+
+
+@dataclass(frozen=True)
+class Step:
+    """One leg of a behaviour: where to go, how briskly, and how long to hold."""
+
+    goals: dict[int, int]
+    speed: int
+    acc: int
+    dwell: float
+    alive: bool = False
+
+
+def _glance(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Look somewhere nearby and hold it."""
+    goals = {yaw.servo_id: yaw.sample(0.24), pitch.servo_id: pitch.sample(0.2)}
+    return [Step(goals, random.randint(260, 420), 25, random.uniform(1.8, 4.5), True)]
+
+
+def _tilt(yaw: Axis, pitch: Axis) -> list[Step]:
+    """The curious head-cock: turn a little, lift the chin, hold it a while."""
+    side = random.choice((-1, 1))
+    goals = {
+        yaw.servo_id: yaw.clamp(yaw.zero + side * random.randint(90, 220)),
+        pitch.servo_id: pitch.clamp(pitch.zero + random.randint(40, 110)),
+    }
+    return [Step(goals, random.randint(200, 320), 18, random.uniform(3.0, 7.0), True)]
+
+
+def _nod(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Two or three quick dips of the chin, then settle."""
+    steps: list[Step] = []
+    depth = random.randint(70, 150)
+    for _ in range(random.randint(2, 3)):
+        steps.append(
+            Step({pitch.servo_id: pitch.clamp(pitch.zero - depth)}, 850, 70, 0.12)
+        )
+        steps.append(
+            Step({pitch.servo_id: pitch.clamp(pitch.zero + depth // 2)}, 850, 70, 0.12)
+        )
+    steps.append(
+        Step({pitch.servo_id: pitch.zero}, 420, 30, random.uniform(1.2, 2.8), True)
+    )
+    return steps
+
+
+def _perk(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Something caught its attention: snap round, then relax back."""
+    goals = {yaw.servo_id: yaw.sample(0.65), pitch.servo_id: pitch.sample(0.4)}
+    return [
+        Step(goals, random.randint(750, 1050), 80, random.uniform(0.6, 1.6)),
+        Step(
+            {yaw.servo_id: yaw.sample(0.3), pitch.servo_id: pitch.sample(0.2)},
+            300,
+            22,
+            random.uniform(1.5, 3.5),
+            True,
+        ),
+    ]
+
+
+def _scan(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Sweep slowly across, pausing as if reading the room."""
+    steps: list[Step] = []
+    direction = random.choice((-1, 1))
+    for fraction in (0.3, 0.65, 1.0):
+        reach = (yaw.high - yaw.zero) if direction > 0 else (yaw.zero - yaw.low)
+        target = yaw.clamp(yaw.zero + direction * round(reach * fraction * 0.8))
+        steps.append(
+            Step(
+                {yaw.servo_id: target, pitch.servo_id: pitch.sample(0.15)},
+                random.randint(160, 260),
+                15,
+                random.uniform(1.0, 2.4),
+                True,
+            )
+        )
+    return steps
+
+
+def _rest(yaw: Axis, pitch: Axis) -> list[Step]:
+    """Settle near centre and stay there for a good while."""
+    goals = {yaw.servo_id: yaw.sample(0.1), pitch.servo_id: pitch.sample(0.1)}
+    return [Step(goals, random.randint(180, 300), 15, random.uniform(4.0, 9.0), True)]
+
+
+# Weighted so nodding and resting dominate, and nothing repeats predictably.
+BEHAVIOURS = (
+    (_glance, 26),
+    (_nod, 20),
+    (_rest, 16),
+    (_tilt, 14),
+    (_scan, 12),
+    (_perk, 12),
+)
+
+
+def _choose(previous):
+    """Pick the next behaviour, avoiding an immediate repeat."""
+    options = [(fn, weight) for fn, weight in BEHAVIOURS if fn is not previous]
+    functions = [fn for fn, _ in options]
+    weights = [weight for _, weight in options]
+    return random.choices(functions, weights=weights, k=1)[0]
 
 
 def main() -> None:
@@ -209,15 +313,25 @@ def main() -> None:
 
         deadline = time.monotonic() + args.seconds if args.seconds else None
         moves = 0
+        previous = None
+        resting = {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero}
         while not stopping.requested:
             if deadline and time.monotonic() >= deadline:
                 break
-            goals, speed, dwell = _next_move(yaw, pitch)
+            behaviour = _choose(previous)
+            previous = behaviour
             moves += 1
-            _travel(bus, axes, goals, speed, stopping)
-            _dwell(dwell, stopping)
+            for step in behaviour(yaw, pitch):
+                if stopping.requested:
+                    break
+                _travel(bus, axes, step.goals, step.speed, stopping, acc=step.acc)
+                resting.update(step.goals)
+                if step.alive:
+                    _breathe(bus, axes, dict(resting), step.dwell, stopping)
+                else:
+                    _dwell(step.dwell, stopping)
 
-        print(f"\nStopping after {moves} moves. Returning to centre.")
+        print(f"\nStopping after {moves} behaviours. Returning to centre.")
         stopping.requested = False  # let the last move finish
         _travel(bus, axes, {yaw.servo_id: yaw.zero, pitch.servo_id: pitch.zero}, 300, stopping)
 
