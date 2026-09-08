@@ -32,6 +32,8 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
 | `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
 | `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
+| `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
+| `apply_limits` | no | Writes the calibrated limits into the servos' own EEPROM |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
 | `teleop_servo` | **yes** | Live arrow-key control of one servo |
@@ -210,6 +212,48 @@ servo accelerate and decelerate fifty times a second. It never reaches a steady
 speed, and the result buzzes, worst on a loaded axis. `zero_servos`,
 `calibrate_joint` and `calibrate_range` still step, because there precision
 matters more than smoothness and the moves are short.
+
+## Hard travel limits
+
+Clamping in Python only protects against the code that does the clamping. The
+servo will also enforce limits itself, from EEPROM addresses 9 and 11, and that
+still holds if a process crashes mid-move or sends a bad goal:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.apply_limits
+uv run --frozen python -m mio_core_services.firmware.apply_limits --verify
+```
+
+The first writes each servo's calibrated `min`/`max` and reads them back to
+confirm; the second only reports. `--factory` restores the full 0-4095 travel.
+
+Limits apply in position mode only (address 33 = 0), which `--verify` checks.
+Anything that drives the servos autonomously should verify before moving.
+
+## Jitter while travelling
+
+Ranked by what actually causes it:
+
+1. **Supply sag.** Servos draw far more current accelerating under load than
+   holding still. A supply that cannot hold voltage through that spike makes
+   the servo latch an undervoltage condition and cut torque, which looks like
+   jitter rather than a power fault. Measure it before tuning anything:
+
+   ```bash
+   uv run --frozen python -m mio_core_services.firmware.monitor_servo --id 1
+   ```
+
+   Jog the joint while it samples. More than about 1 V of sag points at the
+   supply or the wiring back to it.
+
+2. **Crawling speed.** A servo cruising is smoother than one creeping near
+   stall. The teleop default is 900 ticks/s (about 79 deg/s); raising it often
+   cleans up motion that stutters at low speed.
+
+3. **The position loop.** See below.
+
+4. **Backlash.** Mechanical, and worse under load, so it varies by sector as
+   the head's weight shifts.
 
 ## Jitter while stationary
 

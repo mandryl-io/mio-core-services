@@ -68,7 +68,7 @@ def main() -> None:
     parser.add_argument(
         "--speed",
         type=int,
-        default=600,
+        default=900,
         help="Jog velocity in ticks/s while a key is held (4096 = 360°).",
     )
     parser.add_argument(

@@ -12,6 +12,11 @@ INST_READ = 0x02
 INST_WRITE = 0x03
 INST_SYNC_WRITE = 0x83
 ADDR_ID = 5
+# Hard travel limits enforced inside the servo, in position mode only.
+ADDR_MIN_ANGLE_LIMIT = 9  # two bytes
+ADDR_MAX_ANGLE_LIMIT = 11  # two bytes
+ADDR_MODE = 33
+MODE_POSITION = 0
 # Position-loop tuning. All EEPROM: torque off and unlock before writing.
 ADDR_P_COEFFICIENT = 21
 ADDR_D_COEFFICIENT = 22
@@ -25,6 +30,11 @@ ADDR_GOAL_POSITION = 42
 ADDR_GOAL_SPEED = 46
 ADDR_LOCK = 55
 ADDR_PRESENT_POSITION = 56
+ADDR_PRESENT_SPEED = 58
+ADDR_PRESENT_LOAD = 60
+ADDR_PRESENT_VOLTAGE = 62  # tenths of a volt
+ADDR_PRESENT_TEMPERATURE = 63
+ADDR_STATUS = 65
 
 # Waveshare Bus Servo Driver HAT (A) in ESP32 transparent-transmission
 # mode: the Pi drives GPIO 14/15 at 115200 and the ESP32 forwards to the
