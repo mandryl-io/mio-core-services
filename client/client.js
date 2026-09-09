@@ -13,6 +13,7 @@ async function startBrowserClient() {
       <h1>Mio</h1>
       <p id="status">Disconnected</p>
       <div id="log"></div>
+      <video id="local-cam" autoplay muted playsinline></video>
       <div class="actions">
         <button id="connect" type="button">Connect</button>
       </div>
@@ -24,6 +25,7 @@ async function startBrowserClient() {
   const logEl = document.getElementById("log");
   const connectBtn = document.getElementById("connect");
   const botAudio = document.getElementById("bot-audio");
+  const localCam = document.getElementById("local-cam");
 
   let client = null;
   let connected = false;
@@ -46,12 +48,16 @@ async function startBrowserClient() {
     botAudio.play().catch(() => {});
   }
 
+  function attachLocalCam(track) {
+    localCam.srcObject = new MediaStream([track]);
+  }
+
   function createClient() {
     const pcClient = new PipecatClient({
       transport: new SmallWebRTCTransport({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       }),
-      enableCam: false,
+      enableCam: true,
       enableMic: true,
       callbacks: {
         onConnected: () => setStatus("Connected"),
@@ -59,6 +65,7 @@ async function startBrowserClient() {
           connected = false;
           connectBtn.textContent = "Connect";
           botAudio.srcObject = null;
+          localCam.srcObject = null;
           setStatus("Disconnected");
         },
         onBotReady: () => {
@@ -82,6 +89,9 @@ async function startBrowserClient() {
     pcClient.on(RTVIEvent.TrackStarted, (track, participant) => {
       if (!participant?.local && track.kind === "audio") {
         attachBotAudio(track);
+      }
+      if (participant?.local && track.kind === "video") {
+        attachLocalCam(track);
       }
     });
 

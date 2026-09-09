@@ -46,8 +46,15 @@ from mio_core_services.constants import (
     DEFAULT_TTS_VOICE,
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
+from mio_core_services.perception import FaceStore, PerceptionEngine
+from mio_core_services.perception.backend import FaceBackend, NoOpFaceBackend
 from mio_core_services.reminders import Clock, MedicationReminders, SystemClock
-from mio_core_services.tools import EmbedKnowledgeTool, SetMedicationReminderTool
+from mio_core_services.tools import (
+    EmbedKnowledgeTool,
+    NamePersonTool,
+    SetMedicationReminderTool,
+    WhoIsFacingTool,
+)
 from mio_core_services.utils import TerminalDashboard
 
 logger = logging.getLogger(__name__)
@@ -116,6 +123,8 @@ class MioPipelineConfig:
     # Spoken on connect by kicking the realtime model so the greeting
     # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
+    face_store: FaceStore | None = None
+    face_backend: FaceBackend | None = None
 
 
 class MioPipelineState(StrEnum):
@@ -188,6 +197,7 @@ class MioPipeline:
         self,
         embed_tool_name: str | None = None,
         reminder_tool_name: str | None = None,
+        extra_instruction: str = "",
     ) -> OpenAIRealtimeLLMService | None:
         try:
             api_key = self._openai_api_key()
@@ -205,6 +215,8 @@ class MioPipeline:
                     "medication, time, or frequency. After the tool replies, say that "
                     "sentence and return to companionship."
                 )
+            if extra_instruction:
+                system_instruction += extra_instruction
             return _OpenAIRealtimeLLMService(
                 api_key=api_key,
                 settings=OpenAIRealtimeLLMService.Settings(
@@ -259,14 +271,10 @@ class MioPipeline:
             raise ValueError(
                 "runner_args is required when MioPipelineConfig.transport is unset"
             )
-        self._transport = await create_transport(
-            runner_args, DEFAULT_TRANSPORT_PARAMS
-        )
+        self._transport = await create_transport(runner_args, DEFAULT_TRANSPORT_PARAMS)
         return self._transport
 
-    async def run_async(
-        self, runner_args: RunnerArguments | None = None
-    ) -> None:
+    async def run_async(self, runner_args: RunnerArguments | None = None) -> None:
         transport = await self._resolve_transport(runner_args)
 
         self._set_state(MioPipelineState.LOADING)
@@ -277,13 +285,8 @@ class MioPipeline:
             self.pipeline_config.clock or SystemClock(),
         )
         set_tool = SetMedicationReminderTool(reminders.set)
-
-        self._loading_service = "llm"
-        llm = self._create_llm(embed_tool.name, set_tool.name)
-        self._llm = llm
-        if llm is None:
-            self._set_state(MioPipelineState.FAILED)
-            return
+        face_store = self.pipeline_config.face_store or FaceStore()
+        face_backend = self.pipeline_config.face_backend or NoOpFaceBackend()
 
         messages = []
         if self.pipeline_config.initial_message:
@@ -297,7 +300,30 @@ class MioPipeline:
                     ),
                 }
             )
-        context = LLMContext(messages, tools=[embed_tool, set_tool])
+        context = LLMContext(messages)
+        perception = PerceptionEngine(face_backend, face_store, context)
+        name_tool = NamePersonTool(perception.name_person)
+        who_tool = WhoIsFacingTool(perception.who_is_facing)
+        context.set_tools([embed_tool, set_tool, name_tool, who_tool])
+
+        self._loading_service = "llm"
+        llm = self._create_llm(
+            embed_tool.name,
+            set_tool.name,
+            extra_instruction=(
+                " People facing the camera may be listed in a system message. "
+                "You do not have to acknowledge them. If the user just said "
+                "something that needs a reply, answer that first. Only address "
+                "people currently listed. Do not invent names. "
+                f"Call {name_tool.name} when someone tells you who an "
+                f"unrecognized person is. Call {who_tool.name} if you need to "
+                "know who is facing the camera right now."
+            ),
+        )
+        self._llm = llm
+        if llm is None:
+            self._set_state(MioPipelineState.FAILED)
+            return
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
@@ -306,6 +332,7 @@ class MioPipeline:
 
         stages = [
             transport.input(),
+            perception,
             user_aggregator,
             retrieval_engine,
             reminders,
@@ -335,7 +362,9 @@ class MioPipeline:
             self._set_state(MioPipelineState.FINISHED)
 
         transport.add_event_handler("on_client_connected", self._on_client_connected)
-        transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
+        transport.add_event_handler(
+            "on_client_disconnected", self._on_client_disconnected
+        )
 
         runner = WorkerRunner()
         await runner.add_workers(self._worker)
