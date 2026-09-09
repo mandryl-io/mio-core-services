@@ -32,13 +32,15 @@ from pipecat.transports.base_transport import BaseTransport
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_MEDICATION_DB_PATH,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TRANSCRIPTION_MODEL,
     DEFAULT_TRANSPORT_PARAMS,
     DEFAULT_TTS_VOICE,
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
-from mio_core_services.tools import EmbedKnowledgeTool
+from mio_core_services.reminders import Clock, MedicationReminders, SystemClock
+from mio_core_services.tools import EmbedKnowledgeTool, SetMedicationReminderTool
 from mio_core_services.utils import TerminalDashboard
 
 from pipecat.workers.runner import WorkerRunner
@@ -66,6 +68,8 @@ class MioPipelineConfig:
     llm_model: str = DEFAULT_LLM_MODEL
     system_instruction: str = DEFAULT_SYSTEM_PROMPT
     transport: BaseTransport | None = None
+    clock: Clock | None = None
+    reminder_db_path: str = DEFAULT_MEDICATION_DB_PATH
     # Spoken on connect by kicking the realtime model so the greeting
     # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
@@ -137,7 +141,9 @@ class MioPipeline:
         return api_key
 
     def _create_llm(
-        self, embed_tool_name: str | None = None
+        self,
+        embed_tool_name: str | None = None,
+        reminder_tool_name: str | None = None,
     ) -> OpenAIRealtimeLLMService | None:
         try:
             api_key = self._openai_api_key()
@@ -147,6 +153,13 @@ class MioPipeline:
                     " Retrieved knowledge may be attached to each turn; use it when "
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
+                )
+            if reminder_tool_name is not None:
+                system_instruction += (
+                    f" When they want a medication reminder, call {reminder_tool_name} "
+                    "with what they already said. Omit unknowns. Do not invent a "
+                    "medication, time, or frequency. After the tool replies, say that "
+                    "sentence and return to companionship."
                 )
             return OpenAIRealtimeLLMService(
                 api_key=api_key,
@@ -206,9 +219,14 @@ class MioPipeline:
         self._set_state(MioPipelineState.LOADING)
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
+        reminders = MedicationReminders(
+            self.pipeline_config.reminder_db_path,
+            self.pipeline_config.clock or SystemClock(),
+        )
+        set_tool = SetMedicationReminderTool(reminders.set)
 
         self._loading_service = "llm"
-        llm = self._create_llm(embed_tool.name)
+        llm = self._create_llm(embed_tool.name, set_tool.name)
         if llm is None:
             self._set_state(MioPipelineState.FAILED)
             return
@@ -225,7 +243,7 @@ class MioPipeline:
                     ),
                 }
             )
-        context = LLMContext(messages, tools=[embed_tool])
+        context = LLMContext(messages, tools=[embed_tool, set_tool])
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
@@ -236,6 +254,7 @@ class MioPipeline:
             transport.input(),
             user_aggregator,
             retrieval_engine,
+            reminders,
             llm,
             transport.output(),
             assistant_aggregator,
