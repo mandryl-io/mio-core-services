@@ -44,7 +44,7 @@ class MockRunner:
 
 async def test_constructor_failure_sets_failed():
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: None
+    pipeline._create_llm = lambda *args, **kwargs: None
     await pipeline.run_async()
     assert pipeline.state is MioPipelineState.FAILED
     with pytest.raises(RuntimeError):
@@ -59,7 +59,7 @@ async def test_pipeline_started_sets_ready(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
     await pipeline.run_async()
     await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
     assert pipeline.state is MioPipelineState.READY
@@ -74,7 +74,7 @@ async def test_client_connected_kicks_realtime_greeting(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
     await pipeline.run_async()
     await pipeline._on_client_connected(None, None)
     frames = pipeline._worker.queued_frames
