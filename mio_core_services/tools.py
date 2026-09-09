@@ -9,19 +9,24 @@ FunctionHandler = Callable[[FunctionCallParams], Awaitable[None]]
 
 
 class EmbedKnowledgeTool(FunctionSchema):
-    """Schema for storing a fact. Pass ``RetrievalEngine.embed`` as the handler."""
+    """Schema for storing a core emotional experience. Pass ``RetrievalEngine.embed``."""
 
     def __init__(self, handler: FunctionHandler) -> None:
         super().__init__(
             name="embed_knowledge",
             description=(
-                "Embed text with the knowledge-base embedder and store it for later "
-                "retrieval. Call this when the user asks you to remember a fact."
+                "Store a core emotional experience for later retrieval. Call only "
+                "when the user is sharing a felt moment — grief, pride, "
+                "loneliness, love, loss, or the like. Do not call for practical "
+                "facts, small talk, preferences, tasks, or because they asked you "
+                "to remember something mundane."
             ),
             properties={
                 "text": {
                     "type": "string",
-                    "description": "The fact or passage to embed and store.",
+                    "description": (
+                        "The core emotional experience, in the user's own words."
+                    ),
                 },
                 "id": {
                     "type": "string",

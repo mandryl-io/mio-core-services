@@ -1187,7 +1187,7 @@ wheels = [
 
 [[package]]
 name = "insightface"
-version = "2.0"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1199,9 +1199,9 @@ dependencies = [
     { name = "scipy" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/ed/f2bd51bf9c424aad01b75ea5d806fc8788c1dfaa034bc9ddaeb9a5352cdd/insightface-2.0.tar.gz", hash = "sha256:b8d9884f2358c51d297edb499e0a1fd15854ee89ff21740fffe339b0db0f3a9f", size = 1064844, upload-time = "2026-09-08T15:05:30.288Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/77/a1b06d3755fcfb353cdd46a138ec578d9664ee8b53590e73e9edca328928/insightface-1.0.1.tar.gz", hash = "sha256:27af24891bbba470cb3573b366a0fcca8989fc8503c9f8f281e8cba6fd716075", size = 721597, upload-time = "2026-05-23T06:43:00.404Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/ac/3f0ef28534dce63f030b375a0f469741931754ebe46de055a38216c94024/insightface-2.0-py3-none-any.whl", hash = "sha256:7b44c9ef8cfa80d0446285f048d1816a9326c87e7615f04625a1f277adbc4f19", size = 1124511, upload-time = "2026-09-08T15:05:28.717Z" },
+    { url = "https://files.pythonhosted.org/packages/42/ce/33989427a7fae952e1606d0edee4191f965630f3c74f2166fa776fafd271/insightface-1.0.1-py3-none-any.whl", hash = "sha256:5f373f6fedbdda5cbc59a34ca386a75a2995cdaf6899402590ae9eb4308fc2e8", size = 762241, upload-time = "2026-05-23T06:42:58.253Z" },
 ]
 
 [[package]]
@@ -1465,8 +1465,11 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
+    { name = "insightface" },
     { name = "numpy" },
     { name = "ollama" },
+    { name = "onnxruntime" },
+    { name = "opencv-python-headless" },
     { name = "pipecat-ai", extra = ["cli", "local", "runner", "webrtc"] },
     { name = "pydantic" },
     { name = "pytest" },
@@ -1478,21 +1481,14 @@ dependencies = [
     { name = "transformers" },
 ]
 
-[package.optional-dependencies]
-face = [
-    { name = "insightface" },
-    { name = "onnxruntime" },
-    { name = "opencv-python-headless" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "chromadb", specifier = ">=1.5.9" },
-    { name = "insightface", marker = "extra == 'face'", specifier = ">=0.7.3" },
+    { name = "insightface", specifier = ">=0.7.3,<2" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "ollama", specifier = ">=0.6.2" },
-    { name = "onnxruntime", marker = "extra == 'face'", specifier = ">=1.19.0" },
-    { name = "opencv-python-headless", marker = "extra == 'face'", specifier = ">=4.10.0" },
+    { name = "onnxruntime", specifier = ">=1.19.0" },
+    { name = "opencv-python-headless", specifier = ">=4.10.0" },
     { name = "pipecat-ai", extras = ["cli", "local", "openai", "runner", "silero", "webrtc"], specifier = ">=1.6.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pytest", specifier = ">=9.1.1" },
@@ -1503,7 +1499,6 @@ requires-dist = [
     { name = "sounddevice", specifier = ">=0.5.0" },
     { name = "transformers", specifier = ">=5.15.0" },
 ]
-provides-extras = ["face"]
 
 [[package]]
 name = "ml-dtypes"

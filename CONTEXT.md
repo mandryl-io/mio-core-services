@@ -4,6 +4,10 @@ Mio is a spoken companion. People talk out loud; Mio listens, remembers, and kee
 
 ## Language
 
+**Core emotional experience**:
+A felt moment the person is living through or remembering — grief, pride, loneliness, love, loss. What Mio stores to remember them by.
+_Avoid_: fact, detail, memory (too broad)
+
 **Medication**:
 The named thing the person takes, as they would say it (for example "blood pressure tablets" or "lisinopril").
 _Avoid_: drug, prescription, meds (in code and docs; "meds" is fine in speech)

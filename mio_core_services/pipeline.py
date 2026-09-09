@@ -206,7 +206,9 @@ class MioPipeline:
                 system_instruction += (
                     " Retrieved knowledge may be attached to each turn; use it when "
                     "it is relevant and ignore it otherwise. "
-                    f"Call {embed_tool_name} when the user asks you to remember a fact."
+                    f"Call {embed_tool_name} only when they are sharing a core "
+                    "emotional experience. Do not call it for practical facts, "
+                    "small talk, preferences, or tasks."
                 )
             if reminder_tool_name is not None:
                 system_instruction += (
