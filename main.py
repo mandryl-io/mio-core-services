@@ -1,4 +1,6 @@
-from pipecat.runner.run import main as runner_main
+import os
+
+from pipecat.runner import run as runner
 from pipecat.runner.types import RunnerArguments
 
 from mio_core_services.constants import DEFAULT_MIO_CHROMA_PATH
@@ -15,4 +17,6 @@ async def bot(runner_args: RunnerArguments) -> None:
 
 
 if __name__ == "__main__":
-    runner_main()
+    if os.getenv("PIPECAT_HEADLESS"):
+        runner._setup_frontend_routes = lambda _app: None
+    runner.main()

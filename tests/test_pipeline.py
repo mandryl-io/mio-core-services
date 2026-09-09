@@ -14,8 +14,6 @@ def _pipeline() -> MioPipeline:
         MioPipelineConfig(
             vector_store=Mock(),
             transport=MockTransport(),
-            vad_analyzer=Mock(),
-            user_turn_strategies=Mock(),
         )
     )
 

@@ -5,18 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pipecat.audio.vad.vad_analyzer import VADAnalyzer
 from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
-    LLMUserAggregatorParams,
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
@@ -26,6 +24,7 @@ from pipecat.services.openai.realtime.events import (
     AudioOutput,
     InputAudioNoiseReduction,
     InputAudioTranscription,
+    SemanticTurnDetection,
     SessionProperties,
 )
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
@@ -40,14 +39,9 @@ from mio_core_services.constants import (
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.tools import EmbedKnowledgeTool
-from mio_core_services.utils import (
-    TerminalDashboard,
-    create_default_user_turn_strategies,
-    create_default_vad_analyzer,
-)
+from mio_core_services.utils import TerminalDashboard
 
 from pipecat.workers.runner import WorkerRunner
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
 
 
 logger = logging.getLogger(__name__)
@@ -75,10 +69,6 @@ class MioPipelineConfig:
     # Spoken on connect by kicking the realtime model so the greeting
     # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
-    vad_analyzer: VADAnalyzer = field(default_factory=create_default_vad_analyzer)
-    user_turn_strategies: UserTurnStrategies = field(
-        default_factory=create_default_user_turn_strategies
-    )
 
 
 class MioPipelineState(StrEnum):
@@ -169,7 +159,7 @@ class MioPipeline:
                                 transcription=InputAudioTranscription(
                                     model=DEFAULT_TRANSCRIPTION_MODEL,
                                 ),
-                                turn_detection=False,
+                                turn_detection=SemanticTurnDetection(),
                                 noise_reduction=InputAudioNoiseReduction(
                                     type="near_field"
                                 ),
@@ -239,10 +229,6 @@ class MioPipeline:
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
-            user_params=LLMUserAggregatorParams(
-                vad_analyzer=self.pipeline_config.vad_analyzer,
-                user_turn_strategies=self.pipeline_config.user_turn_strategies,
-            ),
             realtime_service_mode=True,
         )
 
