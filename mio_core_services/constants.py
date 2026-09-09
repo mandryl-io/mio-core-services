@@ -3,6 +3,7 @@ from pipecat.transports.base_transport import TransportParams
 
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
+DEFAULT_MEDICATION_DB_PATH = "./mio-reminders.sqlite"
 
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384

@@ -14,6 +14,7 @@ def _pipeline() -> MioPipeline:
         MioPipelineConfig(
             vector_store=Mock(),
             transport=MockTransport(),
+            reminder_db_path=":memory:",
         )
     )
 
@@ -44,7 +45,7 @@ class MockRunner:
 
 async def test_constructor_failure_sets_failed():
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: None
+    pipeline._create_llm = lambda embed_tool_name=None, reminder_tool_name=None: None
     await pipeline.run_async()
     assert pipeline.state is MioPipelineState.FAILED
     with pytest.raises(RuntimeError):
@@ -59,7 +60,7 @@ async def test_pipeline_started_sets_ready(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda embed_tool_name=None, reminder_tool_name=None: Mock()
     await pipeline.run_async()
     await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
     assert pipeline.state is MioPipelineState.READY
@@ -74,12 +75,33 @@ async def test_client_connected_kicks_realtime_greeting(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda embed_tool_name=None, reminder_tool_name=None: Mock()
     await pipeline.run_async()
     await pipeline._on_client_connected(None, None)
     frames = pipeline._worker.queued_frames
     assert len(frames) == 1
     assert isinstance(frames[0], LLMRunFrame)
+
+
+async def test_pipeline_registers_medication_reminder_tool(monkeypatch):
+    captured: dict = {}
+
+    def capture_context(messages, tools=None):
+        captured["names"] = [tool.name for tool in (tools or [])]
+        return Mock()
+
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    monkeypatch.setattr("mio_core_services.pipeline.LLMContext", capture_context)
+    pipeline = _pipeline()
+    pipeline._create_llm = lambda embed_tool_name=None, reminder_tool_name=None: Mock()
+    await pipeline.run_async()
+    assert "embed_knowledge" in captured["names"]
+    assert "set_medication_reminder" in captured["names"]
 
 
 def test_session_updated_accepts_live_transcribe_languages():
