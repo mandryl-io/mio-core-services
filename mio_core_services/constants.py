@@ -5,6 +5,10 @@ MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
 DEFAULT_MEDICATION_DB_PATH = "./mio-reminders.sqlite"
 
+MIO_FACE_COLLECTION = "mio-face-embeddings"
+DEFAULT_FACE_CHROMA_PATH = "./mio-faces"
+DEFAULT_FACE_MATCH_THRESHOLD = 0.45
+
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
@@ -17,6 +21,7 @@ DEFAULT_TRANSPORT_PARAMS = {
     "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
         audio_out_enabled=True,
+        video_in_enabled=True,
     ),
     "eval": lambda: EvalTransportParams(
         audio_in_enabled=True,
