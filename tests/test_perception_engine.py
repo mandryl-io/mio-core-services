@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from typing import Any
 from unittest.mock import Mock
 
@@ -52,6 +54,34 @@ def _presence_messages(context: LLMContext) -> list[str]:
     ]
 
 
+async def _wait_detect(engine: PerceptionEngine) -> None:
+    task = getattr(engine, "_detect_task", None)
+    if task is not None:
+        await task
+
+
+async def test_slow_detect_does_not_block_process_frame():
+    release = threading.Event()
+
+    class BlockingBackend:
+        def detect(self, image, *, size, format=None) -> list[DetectedFace]:
+            release.wait(timeout=5)
+            return []
+
+    engine, _backend, _context = _engine(BlockingBackend())
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+    task = asyncio.create_task(
+        engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    )
+    try:
+        done, _pending = await asyncio.wait({task}, timeout=0.2)
+        assert task in done
+    finally:
+        release.set()
+        await task
+        await _wait_detect(engine)
+
+
 async def test_image_frames_are_not_pushed_downstream():
     engine, backend, context = _engine()
     backend.frames.append([_face(1, 0, 0, 0)])
@@ -60,6 +90,7 @@ async def test_image_frames_are_not_pushed_downstream():
         InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB"),
         FrameDirection.DOWNSTREAM,
     )
+    await _wait_detect(engine)
 
     assert not any(isinstance(frame, InputImageRawFrame) for frame in engine.pushed)
     assert any("unrecognized person" in text for text in _presence_messages(context))
@@ -81,7 +112,9 @@ async def test_leave_removes_presence_message():
     image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
 
     await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    await _wait_detect(engine)
     await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    await _wait_detect(engine)
 
     assert _presence_messages(context) == []
 
@@ -98,6 +131,7 @@ async def test_name_person_binds_the_unnamed_occupant():
         InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB"),
         FrameDirection.DOWNSTREAM,
     )
+    await _wait_detect(engine)
     await engine.name_person(
         Mock(arguments={"name": "Sarah"}, result_callback=result_callback)
     )
@@ -118,6 +152,7 @@ async def test_who_is_facing_returns_current_occupants():
         InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB"),
         FrameDirection.DOWNSTREAM,
     )
+    await _wait_detect(engine)
     await engine.who_is_facing(Mock(arguments={}, result_callback=result_callback))
 
     assert "new_this_session" in captured[0]

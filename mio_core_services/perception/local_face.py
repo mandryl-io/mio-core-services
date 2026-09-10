@@ -24,6 +24,7 @@ class LocalFaceBackend:
         self._yaw_offset = yaw_offset
         self._app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
         self._app.prepare(ctx_id=0, det_size=(640, 640))
+        logger.info("perception: LocalFaceBackend ready (buffalo_l)")
 
     def detect(
         self,

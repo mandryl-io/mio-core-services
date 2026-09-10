@@ -39,6 +39,7 @@ class PerceptionEngine(FrameProcessor):
         self._context = context
         self._occupancy = occupancy or Occupancy(store)
         self._busy = False
+        self._detect_task: asyncio.Task | None = None
 
     @property
     def occupancy(self) -> Occupancy:
@@ -47,14 +48,13 @@ class PerceptionEngine(FrameProcessor):
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         if isinstance(frame, InputImageRawFrame):
-            await self._handle_image(frame)
+            if not self._busy:
+                self._busy = True
+                self._detect_task = asyncio.create_task(self._handle_image(frame))
             return
         await self.push_frame(frame, direction)
 
     async def _handle_image(self, frame: InputImageRawFrame) -> None:
-        if self._busy:
-            return
-        self._busy = True
         try:
             detections = await asyncio.to_thread(
                 self._backend.detect,
@@ -68,6 +68,16 @@ class PerceptionEngine(FrameProcessor):
             logger.exception("perception: face detection failed")
         finally:
             self._busy = False
+
+    async def cleanup(self):
+        if self._detect_task is not None:
+            self._detect_task.cancel()
+            try:
+                await self._detect_task
+            except asyncio.CancelledError:
+                pass
+            self._detect_task = None
+        await super().cleanup()
 
     def _sync_presence(self, text: str | None) -> None:
         messages = [
