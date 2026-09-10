@@ -16,10 +16,10 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
 )
+from pipecat.processors.frame_processor import FrameDirection
+from pipecat.processors.frameworks.rtvi.processor import RTVIProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
-from pipecat.processors.frameworks.rtvi.processor import RTVIProcessor
-from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.openai.realtime.events import (
     AudioConfiguration,
     AudioInput,
@@ -34,6 +34,8 @@ from pipecat.services.openai.realtime.events import (
 )
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.transports.base_transport import BaseTransport
+from pipecat.workers.runner import WorkerRunner
+
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
@@ -43,11 +45,10 @@ from mio_core_services.constants import (
     DEFAULT_TTS_VOICE,
 )
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
-from mio_core_services.tools import EmbedKnowledgeTool
+from mio_core_services.perception import FaceStore, PerceptionEngine
+from mio_core_services.perception.backend import FaceBackend, NoOpFaceBackend
+from mio_core_services.tools import EmbedKnowledgeTool, NamePersonTool, WhoIsFacingTool
 from mio_core_services.utils import TerminalDashboard
-
-from pipecat.workers.runner import WorkerRunner
-
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,8 @@ class MioPipelineConfig:
     # Spoken on connect by kicking the realtime model so the greeting
     # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
+    face_store: FaceStore | None = None
+    face_backend: FaceBackend | None = None
 
 
 class MioPipelineState(StrEnum):
@@ -182,7 +185,9 @@ class MioPipeline:
         return api_key
 
     def _create_llm(
-        self, embed_tool_name: str | None = None
+        self,
+        embed_tool_name: str | None = None,
+        extra_instruction: str = "",
     ) -> OpenAIRealtimeLLMService | None:
         try:
             api_key = self._openai_api_key()
@@ -193,6 +198,8 @@ class MioPipeline:
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
                 )
+            if extra_instruction:
+                system_instruction += extra_instruction
             return _OpenAIRealtimeLLMService(
                 api_key=api_key,
                 settings=OpenAIRealtimeLLMService.Settings(
@@ -260,13 +267,8 @@ class MioPipeline:
         self._set_state(MioPipelineState.LOADING)
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
-
-        self._loading_service = "llm"
-        llm = self._create_llm(embed_tool.name)
-        self._llm = llm
-        if llm is None:
-            self._set_state(MioPipelineState.FAILED)
-            return
+        face_store = self.pipeline_config.face_store or FaceStore()
+        face_backend = self.pipeline_config.face_backend or NoOpFaceBackend()
 
         messages = []
         if self.pipeline_config.initial_message:
@@ -280,7 +282,29 @@ class MioPipeline:
                     ),
                 }
             )
-        context = LLMContext(messages, tools=[embed_tool])
+        context = LLMContext(messages)
+        perception = PerceptionEngine(face_backend, face_store, context)
+        name_tool = NamePersonTool(perception.name_person)
+        who_tool = WhoIsFacingTool(perception.who_is_facing)
+        context.set_tools([embed_tool, name_tool, who_tool])
+
+        self._loading_service = "llm"
+        llm = self._create_llm(
+            embed_tool.name,
+            extra_instruction=(
+                " People facing the camera may be listed in a system message. "
+                "You do not have to acknowledge them. If the user just said "
+                "something that needs a reply, answer that first. Only address "
+                "people currently listed. Do not invent names. "
+                f"Call {name_tool.name} when someone tells you who an "
+                f"unrecognized person is. Call {who_tool.name} if you need to "
+                "know who is facing the camera right now."
+            ),
+        )
+        self._llm = llm
+        if llm is None:
+            self._set_state(MioPipelineState.FAILED)
+            return
 
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
@@ -289,6 +313,7 @@ class MioPipeline:
 
         stages = [
             transport.input(),
+            perception,
             user_aggregator,
             retrieval_engine,
             llm,
