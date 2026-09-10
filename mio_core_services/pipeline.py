@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import InputTextRawFrame, LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -18,12 +18,17 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
+from pipecat.processors.frameworks.rtvi.processor import RTVIProcessor
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.openai.realtime.events import (
     AudioConfiguration,
     AudioInput,
     AudioOutput,
+    ConversationItem,
+    ConversationItemCreateEvent,
     InputAudioNoiseReduction,
     InputAudioTranscription,
+    ItemContent,
     SemanticTurnDetection,
     SessionProperties,
 )
@@ -58,6 +63,45 @@ def _init_input_audio_transcription(self, *args, **kwargs) -> None:
 
 
 InputAudioTranscription.__init__ = _init_input_audio_transcription
+
+# Text-mode evals send RTVI send-text, which only interrupts a Realtime session
+# (pipecat-ai/pipecat#3829). Also inject InputTextRawFrame so we can create a
+# conversation item and kick response.create.
+_original_rtvi_handle_send_text = RTVIProcessor._handle_send_text
+
+
+async def _handle_send_text_for_realtime(self, data) -> None:
+    await _original_rtvi_handle_send_text(self, data)
+    opts = data.options
+    if opts is not None and opts.run_immediately is False:
+        return
+    await self.push_frame(InputTextRawFrame(text=data.content))
+
+
+RTVIProcessor._handle_send_text = _handle_send_text_for_realtime
+
+
+class _OpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
+    """Realtime service that can take typed eval turns, not only mic audio."""
+
+    async def process_frame(self, frame, direction: FrameDirection):
+        if isinstance(frame, InputTextRawFrame):
+            await self._send_user_text(frame.text)
+        await super().process_frame(frame, direction)
+
+    async def _send_user_text(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        item = ConversationItem(
+            type="message",
+            role="user",
+            content=[ItemContent(type="input_text", text=text)],
+        )
+        event = ConversationItemCreateEvent(item=item)
+        self._messages_added_manually[event.item.id] = True
+        await self.send_client_event(event)
+        await self._create_response()
 
 
 @dataclass
@@ -94,6 +138,7 @@ class MioPipeline:
         self._llm_model: str = self.pipeline_config.llm_model
         self._system_instruction: str = self.pipeline_config.system_instruction
         self._worker: PipelineWorker | None = None
+        self._llm: OpenAIRealtimeLLMService | None = None
         self._state = MioPipelineState.IDLE
         self._loading_service: Literal["llm"] | None = None
         self._ready_event = asyncio.Event()
@@ -148,7 +193,7 @@ class MioPipeline:
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
                 )
-            return OpenAIRealtimeLLMService(
+            return _OpenAIRealtimeLLMService(
                 api_key=api_key,
                 settings=OpenAIRealtimeLLMService.Settings(
                     model=self._llm_model,
@@ -177,6 +222,15 @@ class MioPipeline:
         return RetrievalEngine(self.pipeline_config.vector_store)
 
     async def _on_client_connected(self, transport, client) -> None:
+        # Each eval client is a new conversation. The Realtime websocket keeps
+        # the previous items unless we reset; LLMRunFrame also only greets on
+        # the first context frame of a session.
+        if (
+            isinstance(self._llm, OpenAIRealtimeLLMService)
+            and self._llm._context is not None
+        ):
+            await self._llm.reset_conversation()
+            self._llm._context = None
         if self._worker is not None and self.pipeline_config.initial_message:
             await self._worker.queue_frames([LLMRunFrame()])
 
@@ -209,6 +263,7 @@ class MioPipeline:
 
         self._loading_service = "llm"
         llm = self._create_llm(embed_tool.name)
+        self._llm = llm
         if llm is None:
             self._set_state(MioPipelineState.FAILED)
             return
