@@ -29,9 +29,13 @@ class OccupancySnapshot:
             return None
         lines = [
             (
-                f"{PRESENCE_PREFIX} you do not have to acknowledge them. "
-                "If the user just said something that needs a reply, answer that "
-                "first. Only address people listed here. Do not invent names."
+                f"{PRESENCE_PREFIX} listed names are your best match, not a "
+                "certainty — speak them confidently, and if they correct you, "
+                "take that as truth. You do not have to acknowledge someone who "
+                "appeared mid-call. If the user just said something that needs a "
+                "reply, answer that first and do not greet a new person if it "
+                "would derail. Only address people listed here. Do not invent "
+                "names."
             )
         ]
         for occupant in self.occupants:
@@ -41,10 +45,11 @@ class OccupancySnapshot:
                 label = f"an unrecognized person (id={occupant.person_id})"
             if occupant.new_this_session:
                 label += ", new this session"
-                if occupant.name is None:
-                    label += "; you may ask their name if it fits"
             lines.append(f"- {label}")
         return "\n".join(lines)
+
+    def names(self) -> list[str]:
+        return [occupant.name for occupant in self.occupants if occupant.name]
 
     def as_dicts(self) -> list[dict[str, str | bool | None]]:
         return [

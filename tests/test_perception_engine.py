@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
-from pipecat.frames.frames import InputImageRawFrame, TextFrame
+from pipecat.frames.frames import InputImageRawFrame, InputTextRawFrame, TextFrame
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 
@@ -140,6 +140,31 @@ async def test_name_person_binds_the_unnamed_occupant():
     assert any("Sarah" in text for text in _presence_messages(context))
 
 
+async def test_wait_for_facing_returns_once_someone_is_present():
+    engine, backend, _context = _engine()
+    backend.frames.append([_face(1, 0, 0, 0)])
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+
+    wait = asyncio.create_task(engine.wait_for_facing(timeout=1))
+    await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    snapshot = await wait
+
+    assert snapshot.occupants
+    assert snapshot.occupants[0].name is None
+
+
+async def test_wait_for_facing_times_out_when_the_frame_is_empty():
+    engine, backend, _context = _engine()
+    backend.frames.append([])
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+
+    wait = asyncio.create_task(engine.wait_for_facing(timeout=0.05))
+    await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    snapshot = await wait
+
+    assert snapshot.occupants == []
+
+
 async def test_who_is_facing_returns_current_occupants():
     engine, backend, _context = _engine()
     backend.frames.append([_face(1, 0, 0, 0)])
@@ -156,3 +181,48 @@ async def test_who_is_facing_returns_current_occupants():
     await engine.who_is_facing(Mock(arguments={}, result_callback=result_callback))
 
     assert "new_this_session" in captured[0]
+
+
+async def test_single_occupant_is_named_from_spoken_correction():
+    engine, backend, context = _engine()
+    backend.frames.append([_face(1, 0, 0, 0)])
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+
+    await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    await _wait_detect(engine)
+    await engine.process_frame(
+        InputTextRawFrame(text="I'm Sarah"),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert any("Sarah" in text for text in _presence_messages(context))
+    assert engine.occupancy.snapshot.occupants[0].name == "Sarah"
+
+
+async def test_spoken_correction_is_ignored_when_several_people_are_facing():
+    engine, backend, context = _engine()
+    backend.frames.append([_face(1, 0, 0, 0), _face(0, 1, 0, 0)])
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+
+    await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    await _wait_detect(engine)
+    await engine.process_frame(
+        InputTextRawFrame(text="I'm Sarah"),
+        FrameDirection.DOWNSTREAM,
+    )
+
+    assert all("Sarah" not in text for text in _presence_messages(context))
+
+
+async def test_single_occupant_can_correct_a_matched_name():
+    engine, backend, context = _engine()
+    backend.frames.append([_face(1, 0, 0, 0)])
+    image = InputImageRawFrame(image=b"\x00\x00\x00", size=(1, 1), format="RGB")
+
+    await engine.process_frame(image, FrameDirection.DOWNSTREAM)
+    await _wait_detect(engine)
+    engine.apply_spoken_name("I'm Dillon")
+    engine.apply_spoken_name("I'm not Dillon, I'm Sarah")
+
+    assert engine.occupancy.snapshot.occupants[0].name == "Sarah"
+    assert any("Sarah" in text for text in _presence_messages(context))

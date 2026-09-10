@@ -37,6 +37,8 @@ from pipecat.transports.base_transport import BaseTransport
 from pipecat.workers.runner import WorkerRunner
 
 from mio_core_services.constants import (
+    DEFAULT_FACE_WINDOW_SECS,
+    DEFAULT_FIRST_FRAME_TIMEOUT_SECS,
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
     DEFAULT_SYSTEM_PROMPT,
@@ -44,9 +46,15 @@ from mio_core_services.constants import (
     DEFAULT_TRANSPORT_PARAMS,
     DEFAULT_TTS_VOICE,
 )
+from mio_core_services.first_frame import FirstFrameGate
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.perception import FaceStore, PerceptionEngine
 from mio_core_services.perception.backend import FaceBackend, NoOpFaceBackend
+from mio_core_services.perception.greeting import (
+    greeting_developer_message,
+    is_greeting_message,
+    spoken_greeting,
+)
 from mio_core_services.tools import EmbedKnowledgeTool, NamePersonTool, WhoIsFacingTool
 from mio_core_services.utils import TerminalDashboard
 
@@ -116,6 +124,8 @@ class MioPipelineConfig:
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
     face_store: FaceStore | None = None
     face_backend: FaceBackend | None = None
+    first_frame_timeout: float = DEFAULT_FIRST_FRAME_TIMEOUT_SECS
+    face_window: float = DEFAULT_FACE_WINDOW_SECS
 
 
 class MioPipelineState(StrEnum):
@@ -145,6 +155,10 @@ class MioPipeline:
         self._state = MioPipelineState.IDLE
         self._loading_service: Literal["llm"] | None = None
         self._ready_event = asyncio.Event()
+        self._context: LLMContext | None = None
+        self._perception: PerceptionEngine | None = None
+        self._first_frame: FirstFrameGate | None = None
+        self._greeting_task: asyncio.Task | None = None
 
     @property
     def state(self) -> MioPipelineState:
@@ -228,6 +242,41 @@ class MioPipeline:
     def _create_retrieval_engine(self) -> RetrievalEngine:
         return RetrievalEngine(self.pipeline_config.vector_store)
 
+    def _video_in_enabled(self) -> bool:
+        params = getattr(self._transport, "_params", None)
+        return bool(getattr(params, "video_in_enabled", False))
+
+    async def _queue_greeting(self, names: list[str]) -> None:
+        if self._worker is None or self._context is None:
+            return
+        initial = self.pipeline_config.initial_message
+        if not initial:
+            return
+        spoken = spoken_greeting(initial, names)
+        messages = [
+            message
+            for message in self._context.get_messages()
+            if not is_greeting_message(message)
+        ]
+        messages.insert(0, greeting_developer_message(spoken))
+        self._context.set_messages(messages)
+        await self._worker.queue_frames([LLMRunFrame()])
+
+    async def _greet_after_perception(self) -> None:
+        names: list[str] = []
+        gate = self._first_frame
+        perception = self._perception
+        if (
+            gate is not None
+            and perception is not None
+            and await gate.wait(self.pipeline_config.first_frame_timeout)
+        ):
+            snapshot = await perception.wait_for_facing(
+                self.pipeline_config.face_window
+            )
+            names = snapshot.names()
+        await self._queue_greeting(names)
+
     async def _on_client_connected(self, transport, client) -> None:
         # Each eval client is a new conversation. The Realtime websocket keeps
         # the previous items unless we reset; LLMRunFrame also only greets on
@@ -238,10 +287,24 @@ class MioPipeline:
         ):
             await self._llm.reset_conversation()
             self._llm._context = None
-        if self._worker is not None and self.pipeline_config.initial_message:
-            await self._worker.queue_frames([LLMRunFrame()])
+        if self._greeting_task is not None:
+            self._greeting_task.cancel()
+            try:
+                await self._greeting_task
+            except asyncio.CancelledError:
+                pass
+            self._greeting_task = None
+        if not self.pipeline_config.initial_message:
+            return
+        if self._video_in_enabled():
+            self._greeting_task = asyncio.create_task(self._greet_after_perception())
+            return
+        await self._queue_greeting([])
 
     async def _on_client_disconnected(self, transport, client) -> None:
+        if self._greeting_task is not None:
+            self._greeting_task.cancel()
+            self._greeting_task = None
         if self._worker is not None:
             await self._worker.cancel()
 
@@ -271,19 +334,12 @@ class MioPipeline:
         face_backend = self.pipeline_config.face_backend or NoOpFaceBackend()
 
         messages = []
-        if self.pipeline_config.initial_message:
-            messages.append(
-                {
-                    "role": "developer",
-                    "content": (
-                        "Greet the user by saying exactly this, then wait for "
-                        "them to speak: "
-                        f"{self.pipeline_config.initial_message}"
-                    ),
-                }
-            )
         context = LLMContext(messages)
         perception = PerceptionEngine(face_backend, face_store, context)
+        first_frame = FirstFrameGate(skipped=not self._video_in_enabled())
+        self._context = context
+        self._perception = perception
+        self._first_frame = first_frame
         name_tool = NamePersonTool(perception.name_person)
         who_tool = WhoIsFacingTool(perception.who_is_facing)
         context.set_tools([embed_tool, name_tool, who_tool])
@@ -293,12 +349,16 @@ class MioPipeline:
             embed_tool.name,
             extra_instruction=(
                 " People facing the camera may be listed in a system message. "
-                "You do not have to acknowledge them. If the user just said "
-                "something that needs a reply, answer that first. Only address "
-                "people currently listed. Do not invent names. "
-                f"Call {name_tool.name} when someone tells you who an "
-                f"unrecognized person is. Call {who_tool.name} if you need to "
-                "know who is facing the camera right now."
+                "Listed names are likely matches: say them without hedging. "
+                "You do not have to acknowledge someone who appeared after the "
+                "greeting. If the user just said something that needs a reply, "
+                "answer that first and do not greet a new person if it would "
+                "derail. Only address people currently listed. Do not invent "
+                "names. "
+                f"Call {name_tool.name} when someone identifies an unrecognized "
+                "person and more than one person is facing the camera. "
+                f"Call {who_tool.name} if you need to know who is facing the "
+                "camera right now."
             ),
         )
         self._llm = llm
@@ -313,6 +373,7 @@ class MioPipeline:
 
         stages = [
             transport.input(),
+            first_frame,
             perception,
             user_aggregator,
             retrieval_engine,

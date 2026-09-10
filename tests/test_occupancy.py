@@ -61,7 +61,9 @@ def test_known_store_match_uses_saved_name():
 
     assert snapshot.occupants[0].person_id == "sarah"
     assert snapshot.occupants[0].name == "Sarah"
+    assert snapshot.names() == ["Sarah"]
     assert "Sarah" in snapshot.presence_text()
+    assert "best match" in snapshot.presence_text()
 
 
 def test_return_this_session_is_not_new():

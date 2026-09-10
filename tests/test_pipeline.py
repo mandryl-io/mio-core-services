@@ -1,10 +1,14 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from pipecat.frames.frames import LLMRunFrame
 from pipecat.services.openai.realtime.events import parse_server_event
 
+from mio_core_services.perception.greeting import is_greeting_message
+from mio_core_services.perception.occupancy import OccupancySnapshot, Occupant
 from mio_core_services.pipeline import MioPipeline, MioPipelineConfig, MioPipelineState
 from tests.test_utils import MockTransport
 
@@ -80,6 +84,93 @@ async def test_client_connected_kicks_realtime_greeting(monkeypatch):
     frames = pipeline._worker.queued_frames
     assert len(frames) == 1
     assert isinstance(frames[0], LLMRunFrame)
+    greetings = [
+        message
+        for message in pipeline._context.get_messages()
+        if is_greeting_message(message)
+    ]
+    assert greetings
+    assert "I'm Mio" in greetings[0]["content"]
+    assert pipeline._greeting_task is None
+
+
+def _named_snapshot(*names: str) -> OccupancySnapshot:
+    return OccupancySnapshot(
+        occupants=[
+            Occupant(
+                person_id=name.lower(),
+                embedding=np.zeros(4, dtype=np.float32),
+                name=name,
+            )
+            for name in names
+        ]
+    )
+
+
+async def test_video_greeting_names_people_facing_the_camera(monkeypatch):
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    transport = MockTransport()
+    transport._params = SimpleNamespace(video_in_enabled=True)
+    pipeline = MioPipeline(
+        MioPipelineConfig(vector_store=Mock(), transport=transport)
+    )
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
+    await pipeline.run_async()
+
+    async def first_frame_arrives(timeout):
+        return True
+
+    async def dillon_is_facing(timeout):
+        return _named_snapshot("Dillon")
+
+    pipeline._first_frame.wait = first_frame_arrives
+    pipeline._perception.wait_for_facing = dillon_is_facing
+    await pipeline._on_client_connected(None, None)
+    await pipeline._greeting_task
+
+    greetings = [
+        message
+        for message in pipeline._context.get_messages()
+        if is_greeting_message(message)
+    ]
+    assert "Hi, Dillon." in greetings[0]["content"]
+    assert isinstance(pipeline._worker.queued_frames[0], LLMRunFrame)
+
+
+async def test_video_greeting_falls_back_when_no_frame_arrives(monkeypatch):
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    transport = MockTransport()
+    transport._params = SimpleNamespace(video_in_enabled=True)
+    pipeline = MioPipeline(
+        MioPipelineConfig(
+            vector_store=Mock(),
+            transport=transport,
+            first_frame_timeout=0.01,
+            face_window=0.01,
+        )
+    )
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
+    await pipeline.run_async()
+    await pipeline._on_client_connected(None, None)
+    await pipeline._greeting_task
+
+    greetings = [
+        message
+        for message in pipeline._context.get_messages()
+        if is_greeting_message(message)
+    ]
+    assert "Hi, I'm Mio." in greetings[0]["content"]
+    assert "Dillon" not in greetings[0]["content"]
 
 
 def test_session_updated_accepts_live_transcribe_languages():

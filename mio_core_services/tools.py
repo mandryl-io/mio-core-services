@@ -41,8 +41,9 @@ class NamePersonTool(FunctionSchema):
             name="name_person",
             description=(
                 "Store a name for a person facing the camera. Call this when "
-                "someone tells you who an unrecognized person is. If only one "
-                "unrecognized person is facing the camera, id can be omitted."
+                "someone identifies an unrecognized person and more than one "
+                "person is facing the camera. If only one unrecognized person "
+                "is facing, id can be omitted."
             ),
             properties={
                 "name": {
