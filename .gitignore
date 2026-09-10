@@ -12,3 +12,7 @@ wheels/
 
 # Local Chroma persistence
 mio-chroma/
+
+# JS client
+client/node_modules/
+client/dist/
