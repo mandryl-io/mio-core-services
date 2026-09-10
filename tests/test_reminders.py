@@ -1,7 +1,12 @@
+import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from mio_core_services.reminders import FakeClock, MedicationReminders
+from pipecat.frames.frames import InputTextRawFrame, LLMRunFrame
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.frame_processor import FrameDirection
+
+from mio_core_services.reminders import DueDose, FakeClock, MedicationReminders
 
 SYDNEY = ZoneInfo("Australia/Sydney")
 
@@ -56,6 +61,17 @@ async def test_same_medication_and_due_time_is_idempotent():
     second = await book.set_reminder("lisinopril", "every morning at 8", None)
     assert first.status == second.status == "recorded"
     assert first.reminder_id == second.reminder_id
+
+
+async def test_spoken_in_two_minutes_records_and_fires():
+    clock = FakeClock(datetime(2026, 9, 9, 8, 0, tzinfo=SYDNEY))
+    book = MedicationReminders(":memory:", clock)
+    result = await book.set_reminder("Diabex 1000 milligrams", "in two minutes", None)
+    assert result.status == "recorded"
+    clock.set(datetime(2026, 9, 9, 8, 2, tzinfo=SYDNEY))
+    due = await book.tick()
+    assert due is not None
+    assert due.medication == "Diabex 1000 milligrams"
 
 
 async def test_one_off_fires_once():
@@ -113,4 +129,57 @@ async def test_set_handler_returns_the_spoken_sentence():
     await book.set(Params())
     assert spoken
     assert "lisinopril" in spoken[0].lower()
+
+
+async def test_due_dose_queues_text_the_realtime_llm_will_run():
+    book = _book()
+    pushed = []
+
+    async def capture(frame, direction=FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    book.push_frame = capture
+    book._context = LLMContext([])
+    await book._kick_due(
+        DueDose(
+            reminder_id="abc",
+            medication="Diapex",
+            due_at=datetime(2026, 9, 9, 8, 2, tzinfo=SYDNEY),
+        )
+    )
+    assert not any(isinstance(frame, LLMRunFrame) for frame in pushed)
+    assert any(
+        isinstance(frame, InputTextRawFrame) and "Diapex" in frame.text
+        for frame in pushed
+    )
+
+
+async def test_poll_loop_kicks_when_the_clock_reaches_due():
+    clock = FakeClock(datetime(2026, 9, 9, 8, 0, tzinfo=SYDNEY))
+    book = MedicationReminders(":memory:", clock, poll_interval=0.05)
+    pushed = []
+
+    async def capture(frame, direction=FrameDirection.DOWNSTREAM):
+        pushed.append(frame)
+
+    book.push_frame = capture
+    book._context = LLMContext([])
+    await book.set_reminder("Diapex", "in two minutes", None)
+    book._poll_task = asyncio.create_task(book._poll())
+    clock.set(datetime(2026, 9, 9, 8, 2, tzinfo=SYDNEY))
+    try:
+        for _ in range(20):
+            if any(
+                isinstance(frame, InputTextRawFrame) and "Diapex" in frame.text
+                for frame in pushed
+            ):
+                break
+            await asyncio.sleep(0.05)
+        assert any(
+            isinstance(frame, InputTextRawFrame) and "Diapex" in frame.text
+            for frame in pushed
+        )
+    finally:
+        await book.cleanup()
+
 

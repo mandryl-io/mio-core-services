@@ -9,26 +9,33 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import InputTextRawFrame, LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
 )
+from pipecat.processors.frame_processor import FrameDirection
+from pipecat.processors.frameworks.rtvi.processor import RTVIProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
 from pipecat.services.openai.realtime.events import (
     AudioConfiguration,
     AudioInput,
     AudioOutput,
+    ConversationItem,
+    ConversationItemCreateEvent,
     InputAudioNoiseReduction,
     InputAudioTranscription,
+    ItemContent,
     SemanticTurnDetection,
     SessionProperties,
 )
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.transports.base_transport import BaseTransport
+from pipecat.workers.runner import WorkerRunner
+
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
@@ -42,9 +49,6 @@ from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.reminders import Clock, MedicationReminders, SystemClock
 from mio_core_services.tools import EmbedKnowledgeTool, SetMedicationReminderTool
 from mio_core_services.utils import TerminalDashboard
-
-from pipecat.workers.runner import WorkerRunner
-
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,44 @@ def _init_input_audio_transcription(self, *args, **kwargs) -> None:
 
 
 InputAudioTranscription.__init__ = _init_input_audio_transcription
+
+# DueDose kicks (and text-mode evals) push InputTextRawFrame. Realtime otherwise
+# only speaks from mic audio, so inject those frames as conversation items.
+_original_rtvi_handle_send_text = RTVIProcessor._handle_send_text
+
+
+async def _handle_send_text_for_realtime(self, data) -> None:
+    await _original_rtvi_handle_send_text(self, data)
+    opts = data.options
+    if opts is not None and opts.run_immediately is False:
+        return
+    await self.push_frame(InputTextRawFrame(text=data.content))
+
+
+RTVIProcessor._handle_send_text = _handle_send_text_for_realtime
+
+
+class _OpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
+    """Realtime service that can take typed turns, not only mic audio."""
+
+    async def process_frame(self, frame, direction: FrameDirection):
+        if isinstance(frame, InputTextRawFrame):
+            await self._send_user_text(frame.text)
+        await super().process_frame(frame, direction)
+
+    async def _send_user_text(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        item = ConversationItem(
+            type="message",
+            role="user",
+            content=[ItemContent(type="input_text", text=text)],
+        )
+        event = ConversationItemCreateEvent(item=item)
+        self._messages_added_manually[event.item.id] = True
+        await self.send_client_event(event)
+        await self._create_response()
 
 
 @dataclass
@@ -161,7 +203,7 @@ class MioPipeline:
                     "medication, time, or frequency. After the tool replies, say that "
                     "sentence and return to companionship."
                 )
-            return OpenAIRealtimeLLMService(
+            return _OpenAIRealtimeLLMService(
                 api_key=api_key,
                 settings=OpenAIRealtimeLLMService.Settings(
                     model=self._llm_model,

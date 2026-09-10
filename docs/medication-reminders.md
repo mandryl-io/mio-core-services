@@ -66,7 +66,7 @@ Not a second service. The poller is an asyncio loop **inside** `MedicationRemind
 
 A separate poller would still need the live Realtime session to speak a DueDose. That session only exists in this process. Splitting it out now would invent a Speech port we do not have. If reminders later must fire when Mio is closed, that is a new delivery path (OS alarm or a background worker plus a chime) — not this cut.
 
-On `StartFrame`, the loop calls `tick`. When a DueDose is claimed, it appends a developer line to the live `LLMContext` and pushes `LLMRunFrame` so Mio speaks one short sentence, then waits. If the greeting has not run, hold the claim until context exists.
+On `StartFrame`, the loop calls `tick`. When a DueDose is claimed, it appends a developer line to the live `LLMContext` and pushes `InputTextRawFrame` so Mio speaks one short sentence, then waits. If the greeting has not run, hold the claim until context exists.
 
 Poll interval stays inside the implementation (~15s). Tests call `tick` with a frozen clock; they do not sleep.
 

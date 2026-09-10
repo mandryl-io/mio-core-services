@@ -15,8 +15,8 @@ from zoneinfo import ZoneInfo
 from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
+    InputTextRawFrame,
     LLMContextFrame,
-    LLMRunFrame,
     StartFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
@@ -88,8 +88,34 @@ class _Draft:
     frequency: str | None = None
 
 
-_IN_MINUTES = re.compile(r"\bin\s+(\d+)\s+minutes?\b", re.I)
-_IN_HOURS = re.compile(r"\bin\s+(\d+)\s+hours?\b", re.I)
+_WORD_QUANTITIES = {
+    "a": 1,
+    "an": 1,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "thirty": 30,
+}
+_QUANTITY = r"(?:\d+|" + "|".join(sorted(_WORD_QUANTITIES, key=len, reverse=True)) + r")"
+_IN_MINUTES = re.compile(rf"\bin\s+({_QUANTITY})\s+minutes?\b", re.I)
+_IN_HOURS = re.compile(rf"\bin\s+({_QUANTITY})\s+hours?\b", re.I)
 _CLOCK_TIME = re.compile(
     r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
     re.I,
@@ -338,12 +364,21 @@ class MedicationReminders(FrameProcessor):
 
     async def _poll(self) -> None:
         while True:
-            due = await self.tick()
-            if due is not None:
-                if self._context is None:
-                    self._pending_due = due
-                else:
-                    await self._kick_due(due)
+            try:
+                due = await self.tick()
+                if due is not None:
+                    if self._context is None:
+                        self._pending_due = due
+                        logger.info(
+                            "reminders: holding DueDose for %s until context exists",
+                            due.medication,
+                        )
+                    else:
+                        await self._kick_due(due)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("reminders: poll iteration failed")
             await asyncio.sleep(self._poll_interval)
 
     async def cleanup(self):
@@ -354,16 +389,15 @@ class MedicationReminders(FrameProcessor):
         if self._context is None:
             self._pending_due = due
             return
-        self._context.add_message(
-            {
-                "role": "developer",
-                "content": (
-                    "A DueDose is due. In one short sentence, tell them it is time "
-                    f"for {due.medication}. Then wait. Do not list other reminders."
-                ),
-            }
+        instruction = (
+            "A DueDose is due. In one short sentence, tell them it is time "
+            f"for {due.medication}. Then wait. Do not list other reminders."
         )
-        await self.push_frame(LLMRunFrame(), FrameDirection.DOWNSTREAM)
+        self._context.add_message({"role": "developer", "content": instruction})
+        logger.info("reminders: kicking realtime for %s", due.medication)
+        await self.push_frame(
+            InputTextRawFrame(text=instruction), FrameDirection.DOWNSTREAM
+        )
 
     async def _stop_poll(self) -> None:
         if self._poll_task is None:
@@ -423,27 +457,40 @@ def _is_periodic(when: str, frequency: str | None) -> bool | None:
     return None
 
 
+def _parse_quantity(raw: str) -> int | None:
+    text = raw.strip().lower()
+    if text.isdigit():
+        return int(text)
+    return _WORD_QUANTITIES.get(text)
+
+
 def _relative_due(when: str, now: datetime) -> datetime | None:
     minutes = _IN_MINUTES.search(when)
     if minutes:
-        return now + timedelta(minutes=int(minutes.group(1)))
+        n = _parse_quantity(minutes.group(1))
+        if n is not None:
+            return now + timedelta(minutes=n)
     hours = _IN_HOURS.search(when)
     if hours:
-        return now + timedelta(hours=int(hours.group(1)))
+        n = _parse_quantity(hours.group(1))
+        if n is not None:
+            return now + timedelta(hours=n)
     return None
 
 
 def _spoken_relative(when: str) -> str:
     minutes = _IN_MINUTES.search(when)
     if minutes:
-        n = minutes.group(1)
-        unit = "minute" if n == "1" else "minutes"
-        return f"in {n} {unit}"
+        n = _parse_quantity(minutes.group(1))
+        if n is not None:
+            unit = "minute" if n == 1 else "minutes"
+            return f"in {n} {unit}"
     hours = _IN_HOURS.search(when)
     if hours:
-        n = hours.group(1)
-        unit = "hour" if n == "1" else "hours"
-        return f"in {n} {unit}"
+        n = _parse_quantity(hours.group(1))
+        if n is not None:
+            unit = "hour" if n == 1 else "hours"
+            return f"in {n} {unit}"
     return when
 
 
