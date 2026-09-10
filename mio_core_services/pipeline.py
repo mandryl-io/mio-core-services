@@ -39,6 +39,7 @@ from pipecat.workers.runner import WorkerRunner
 from mio_core_services.constants import (
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_MEDICATION_DB_PATH,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TRANSCRIPTION_MODEL,
     DEFAULT_TRANSPORT_PARAMS,
@@ -47,7 +48,13 @@ from mio_core_services.constants import (
 from mio_core_services.memory import MioVectorStore, RetrievalEngine
 from mio_core_services.perception import FaceStore, PerceptionEngine
 from mio_core_services.perception.backend import FaceBackend, NoOpFaceBackend
-from mio_core_services.tools import EmbedKnowledgeTool, NamePersonTool, WhoIsFacingTool
+from mio_core_services.reminders import Clock, MedicationReminders, SystemClock
+from mio_core_services.tools import (
+    EmbedKnowledgeTool,
+    NamePersonTool,
+    SetMedicationReminderTool,
+    WhoIsFacingTool,
+)
 from mio_core_services.utils import TerminalDashboard
 
 logger = logging.getLogger(__name__)
@@ -65,9 +72,10 @@ def _init_input_audio_transcription(self, *args, **kwargs) -> None:
 
 InputAudioTranscription.__init__ = _init_input_audio_transcription
 
-# Text-mode evals send RTVI send-text, which only interrupts a Realtime session
-# (pipecat-ai/pipecat#3829). Also inject InputTextRawFrame so we can create a
-# conversation item and kick response.create.
+# DueDose kicks (and text-mode evals) push InputTextRawFrame. RTVI send-text
+# only interrupts a Realtime session (pipecat-ai/pipecat#3829); Realtime
+# otherwise only speaks from mic audio, so inject those frames as conversation
+# items and kick response.create.
 _original_rtvi_handle_send_text = RTVIProcessor._handle_send_text
 
 
@@ -83,7 +91,7 @@ RTVIProcessor._handle_send_text = _handle_send_text_for_realtime
 
 
 class _OpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
-    """Realtime service that can take typed eval turns, not only mic audio."""
+    """Realtime service that can take typed turns, not only mic audio."""
 
     async def process_frame(self, frame, direction: FrameDirection):
         if isinstance(frame, InputTextRawFrame):
@@ -111,6 +119,8 @@ class MioPipelineConfig:
     llm_model: str = DEFAULT_LLM_MODEL
     system_instruction: str = DEFAULT_SYSTEM_PROMPT
     transport: BaseTransport | None = None
+    clock: Clock | None = None
+    reminder_db_path: str = DEFAULT_MEDICATION_DB_PATH
     # Spoken on connect by kicking the realtime model so the greeting
     # is the first assistant turn.
     initial_message: str | None = DEFAULT_INITIAL_MESSAGE
@@ -187,6 +197,7 @@ class MioPipeline:
     def _create_llm(
         self,
         embed_tool_name: str | None = None,
+        reminder_tool_name: str | None = None,
         extra_instruction: str = "",
     ) -> OpenAIRealtimeLLMService | None:
         try:
@@ -197,6 +208,13 @@ class MioPipeline:
                     " Retrieved knowledge may be attached to each turn; use it when "
                     "it is relevant and ignore it otherwise. "
                     f"Call {embed_tool_name} when the user asks you to remember a fact."
+                )
+            if reminder_tool_name is not None:
+                system_instruction += (
+                    f" When they want a medication reminder, call {reminder_tool_name} "
+                    "with what they already said. Omit unknowns. Do not invent a "
+                    "medication, time, or frequency. After the tool replies, say that "
+                    "sentence and return to companionship."
                 )
             if extra_instruction:
                 system_instruction += extra_instruction
@@ -254,19 +272,20 @@ class MioPipeline:
             raise ValueError(
                 "runner_args is required when MioPipelineConfig.transport is unset"
             )
-        self._transport = await create_transport(
-            runner_args, DEFAULT_TRANSPORT_PARAMS
-        )
+        self._transport = await create_transport(runner_args, DEFAULT_TRANSPORT_PARAMS)
         return self._transport
 
-    async def run_async(
-        self, runner_args: RunnerArguments | None = None
-    ) -> None:
+    async def run_async(self, runner_args: RunnerArguments | None = None) -> None:
         transport = await self._resolve_transport(runner_args)
 
         self._set_state(MioPipelineState.LOADING)
         retrieval_engine = self._create_retrieval_engine()
         embed_tool = EmbedKnowledgeTool(retrieval_engine.embed)
+        reminders = MedicationReminders(
+            self.pipeline_config.reminder_db_path,
+            self.pipeline_config.clock or SystemClock(),
+        )
+        set_tool = SetMedicationReminderTool(reminders.set)
         face_store = self.pipeline_config.face_store or FaceStore()
         face_backend = self.pipeline_config.face_backend or NoOpFaceBackend()
 
@@ -286,11 +305,12 @@ class MioPipeline:
         perception = PerceptionEngine(face_backend, face_store, context)
         name_tool = NamePersonTool(perception.name_person)
         who_tool = WhoIsFacingTool(perception.who_is_facing)
-        context.set_tools([embed_tool, name_tool, who_tool])
+        context.set_tools([embed_tool, set_tool, name_tool, who_tool])
 
         self._loading_service = "llm"
         llm = self._create_llm(
             embed_tool.name,
+            set_tool.name,
             extra_instruction=(
                 " People facing the camera may be listed in a system message. "
                 "You do not have to acknowledge them. If the user just said "
@@ -316,6 +336,7 @@ class MioPipeline:
             perception,
             user_aggregator,
             retrieval_engine,
+            reminders,
             llm,
             transport.output(),
             assistant_aggregator,
@@ -342,7 +363,9 @@ class MioPipeline:
             self._set_state(MioPipelineState.FINISHED)
 
         transport.add_event_handler("on_client_connected", self._on_client_connected)
-        transport.add_event_handler("on_client_disconnected", self._on_client_disconnected)
+        transport.add_event_handler(
+            "on_client_disconnected", self._on_client_disconnected
+        )
 
         runner = WorkerRunner()
         await runner.add_workers(self._worker)

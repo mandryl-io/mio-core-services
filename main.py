@@ -5,6 +5,7 @@ from pipecat.runner.types import RunnerArguments
 
 from mio_core_services.constants import (
     DEFAULT_FACE_CHROMA_PATH,
+    DEFAULT_MEDICATION_DB_PATH,
     DEFAULT_MIO_CHROMA_PATH,
 )
 from mio_core_services.memory import MioVectorStore
@@ -17,6 +18,7 @@ async def bot(runner_args: RunnerArguments) -> None:
     """Pipecat runner entrypoint. WebRTC is the default; use `-t eval` for evals."""
     config = MioPipelineConfig(
         vector_store=MioVectorStore.load(store_name=DEFAULT_MIO_CHROMA_PATH),
+        reminder_db_path=DEFAULT_MEDICATION_DB_PATH,
         face_store=FaceStore(path=DEFAULT_FACE_CHROMA_PATH),
         face_backend=create_face_backend(),
     )

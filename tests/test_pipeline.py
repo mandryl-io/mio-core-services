@@ -14,6 +14,7 @@ def _pipeline() -> MioPipeline:
         MioPipelineConfig(
             vector_store=Mock(),
             transport=MockTransport(),
+            reminder_db_path=":memory:",
         )
     )
 
@@ -80,6 +81,32 @@ async def test_client_connected_kicks_realtime_greeting(monkeypatch):
     frames = pipeline._worker.queued_frames
     assert len(frames) == 1
     assert isinstance(frames[0], LLMRunFrame)
+
+
+async def test_pipeline_registers_medication_reminder_tool(monkeypatch):
+    captured: dict = {}
+
+    class CaptureContext:
+        def __init__(self, messages, tools=None):
+            captured["names"] = [tool.name for tool in (tools or [])]
+
+        def set_tools(self, tools):
+            captured["names"] = [tool.name for tool in (tools or [])]
+
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    monkeypatch.setattr("mio_core_services.pipeline.LLMContext", CaptureContext)
+    pipeline = _pipeline()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
+    await pipeline.run_async()
+    assert "embed_knowledge" in captured["names"]
+    assert "set_medication_reminder" in captured["names"]
+    assert "name_person" in captured["names"]
+    assert "who_is_facing" in captured["names"]
 
 
 def test_session_updated_accepts_live_transcribe_languages():
