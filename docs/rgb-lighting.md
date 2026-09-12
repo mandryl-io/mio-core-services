@@ -1,15 +1,22 @@
-# RGB Lighting
+# Lighting
 
-A WS2811 RGB light on GPIO18, cycling the three primaries and then the full
-spectrum, changing brightness on every transition.
+A WS2811 RGB light and two white eye LEDs, on one header.
 
 ## Wiring
 
-| Breakout | Pi 5 header | |
+| Signal | Pin | |
 | --- | --- | --- |
-| 5V | physical pin 2 | 5V |
-| GND | physical pin 6 | ground |
-| DI | physical pin 12 | GPIO18, `board.D18` in software |
+| RGB 5V | 2 | 5V |
+| RGB GND | 6 | ground |
+| RGB DI | 12 | GPIO18, `board.D18` in software |
+| Eye grounds | 14 | ground |
+| Left eye | 16 | GPIO23 |
+| Right eye | 18 | GPIO24 |
+
+The RGB light and the eyes are separate programs on separate pins and can run
+at the same time, alongside the head.
+
+# The RGB light
 
 The Pi drives DI at 3.3 V while a 5 V WS2811 may want a higher data-high
 threshold. It usually works direct. Flicker, wrong colours or a dead strand
@@ -137,5 +144,73 @@ servos.
 The colour logic is separate from the hardware and tested off the Pi:
 
 ```bash
-uv run --frozen pytest tests/test_color_cycle.py
+uv run --frozen pytest tests/test_color_cycle.py tests/test_eyes.py
 ```
+
+
+# The eyes
+
+Two white LEDs on GPIO23 and GPIO24, run from `gpiozero`:
+
+```bash
+cd ~/mio-core-services-waveshare
+~/ledenv/bin/python -m mio_core_services.lighting.eyes
+```
+
+One lap is the left eye flashing three times, the right eye flashing three
+times, then both blinking together for three seconds — about 5.3 s — repeating
+until Ctrl+C. Both LEDs are driven off and the pins released on the way out,
+including on SIGTERM, so a systemd unit stops cleanly too.
+
+**Which eye is "left"** depends on how they were soldered and whether you mean
+the robot's left or the one facing you. If the wrong one goes first, swap them:
+
+```bash
+~/ledenv/bin/python -m mio_core_services.lighting.eyes --left-pin 24 --right-pin 23
+```
+
+If that is the right way round, change `DEFAULT_LEFT_PIN` and
+`DEFAULT_RIGHT_PIN` in `mio_core_services/lighting/eyes.py`.
+
+## Options
+
+| Flag | Default | |
+| --- | --- | --- |
+| `--left-pin` | 23 | BCM number, pin 16 |
+| `--right-pin` | 24 | BCM number, pin 18 |
+| `--flashes` | 3 | Flashes per eye before the pair blink |
+| `--flash-on` / `--flash-off` | 0.12 / 0.18 | Flash timing |
+| `--gap` | 0.45 | Dark pause between phases |
+| `--both-seconds` | 3.0 | How long the pair blink together |
+| `--blink-on` / `--blink-off` | 0.12 | Blink timing in that phase |
+| `--laps` | 0 | Laps to run; 0 until stopped |
+| `--active-low` | | If the LEDs sink rather than source |
+
+The `--both-seconds` phase is trimmed to length rather than rounded up to a
+whole blink cycle, so an awkward value lasts exactly what you asked for.
+
+If the eyes come on when they should be off, they are wired to sink current —
+pass `--active-low`.
+
+## Running everything at once
+
+Nothing is shared: the servos are on the UART, the RGB light is on GPIO18 and
+the eyes are on GPIO23/24.
+
+```bash
+~/ledenv/bin/python -m mio_core_services.lighting.eyes &
+~/ledenv/bin/python -m mio_core_services.lighting.color_cycle
+```
+
+Stop the cycle with Ctrl+C, then bring the eyes back with `fg` and Ctrl+C, or
+`kill %1`. Backgrounding it that way means it dies with the SSH session; a
+`systemd` unit like `mio-head.service` is the answer if you want it permanent.
+
+## Eye troubleshooting
+
+| Symptom | Cause |
+| --- | --- |
+| `Cannot import gpiozero` | `sudo apt install -y python3-gpiozero python3-lgpio` |
+| `Cannot claim GPIO` | Another process holds the pins, or no gpio group |
+| Wrong eye flashes first | Swap `--left-pin` and `--right-pin` |
+| Inverted, on when off | `--active-low` |
