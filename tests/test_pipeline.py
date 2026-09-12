@@ -132,7 +132,7 @@ def test_session_updated_accepts_live_transcribe_languages():
     assert event.session.audio.input.transcription.model == "gpt-live-transcribe"
 
 
-def test_realtime_uses_soft_server_turn_detection(monkeypatch):
+def test_realtime_uses_server_turn_detection(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     from pipecat.services.openai.realtime.events import SemanticTurnDetection
 
@@ -144,32 +144,8 @@ def test_realtime_uses_soft_server_turn_detection(monkeypatch):
     turn = llm._settings.session_properties.audio.input.turn_detection
     assert isinstance(turn, SemanticTurnDetection)
     assert turn.eagerness == "low"
-    assert turn.interrupt_response is False
+    assert turn.interrupt_response is True
     assert (
         llm._settings.session_properties.audio.input.noise_reduction.type
         == "far_field"
     )
-
-
-async def test_soft_barge_in_skips_local_interruption(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-
-    pipeline = _pipeline()
-    llm = pipeline._create_llm()
-    calls: list[str] = []
-
-    async def record_broadcast(frame_type):
-        calls.append(f"broadcast:{getattr(frame_type, '__name__', frame_type)}")
-
-    async def record_truncate():
-        calls.append("truncate")
-
-    async def record_interrupt():
-        calls.append("interrupt")
-
-    monkeypatch.setattr(llm, "broadcast_frame", record_broadcast)
-    monkeypatch.setattr(llm, "_truncate_current_audio_response", record_truncate)
-    monkeypatch.setattr(llm, "broadcast_interruption", record_interrupt)
-
-    await llm._handle_evt_speech_started(object())
-    assert calls == ["broadcast:UserStartedSpeakingFrame"]
