@@ -95,8 +95,9 @@ It shares no hardware with the servos, so `mio-head.service` can keep the head
 moving while it runs.
 
 Two white eye LEDs on GPIO23 and GPIO24 (pins 16 and 18, grounds on pin 14)
-are a separate program — left eye three flashes, right eye three flashes, then
-both blinking together for three seconds, repeating:
+are a separate program — each eye blinking on its own for three seconds in
+turn, never both at once (`--mode flashes` gives the left x3, right x3, both
+pattern instead):
 
 ```bash
 ~/ledenv/bin/python -m mio_core_services.lighting.eyes

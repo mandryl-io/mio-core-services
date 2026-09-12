@@ -1,7 +1,14 @@
-"""The two white eye LEDs: left three times, right three times, then both.
+"""The two white eye LEDs, on GPIO23 and GPIO24.
 
-One lap is left flashing three times, right flashing three times, then both
-blinking together for three seconds. It repeats until stopped.
+Two patterns, chosen with --mode:
+
+  alternate  the default. Each eye blinks on its own for three seconds while
+             the other stays dark, then they swap. They are never lit at the
+             same time.
+  flashes    left three times, right three times, then both together for
+             three seconds.
+
+Either repeats until stopped.
 
 Wiring, on the same header as the RGB light:
 
@@ -35,6 +42,11 @@ GAP = 0.45  # between the left group and the right group
 BOTH_SECONDS = 3.0
 BLINK_ON = 0.12
 BLINK_OFF = 0.12
+
+# alternate mode: how long each eye holds the floor, and its blink rate.
+EACH_SECONDS = 3.0
+ALT_ON = 0.15
+ALT_OFF = 0.15
 
 EPSILON = 1e-9
 
@@ -72,17 +84,36 @@ def pattern(
     if gap:
         steps.append(Step(False, False, gap))
 
-    # Blink whole cycles, trimming the last so the phase lasts exactly
-    # both_seconds rather than overrunning by part of a cycle.
-    remaining = both_seconds
+    steps += _blink(both_seconds, blink_on, blink_off, True, True)
+    return steps
+
+
+def _blink(remaining: float, on: float, off: float, left: bool, right: bool):
+    """Blink one lamp pair for `remaining` seconds, ending on a dark step.
+
+    The last span is trimmed rather than rounded up to a whole cycle, so the
+    phase lasts exactly as long as asked.
+    """
+    steps: list[Step] = []
     lit = True
     while remaining > EPSILON:
-        span = min(blink_on if lit else blink_off, remaining)
-        steps.append(Step(lit, lit, span))
+        span = min(on if lit else off, remaining)
+        steps.append(Step(left and lit, right and lit, span))
         remaining -= span
         lit = not lit
-
     return steps
+
+
+def alternating(
+    each_seconds: float = EACH_SECONDS,
+    blink_on: float = ALT_ON,
+    blink_off: float = ALT_OFF,
+) -> list[Step]:
+    """Each eye blinks alone for `each_seconds`, then the other. Never both."""
+    return (
+        _blink(each_seconds, blink_on, blink_off, True, False)
+        + _blink(each_seconds, blink_on, blink_off, False, True)
+    )
 
 
 class Stopping:
@@ -157,16 +188,24 @@ def main() -> None:
                         help="BCM number for the left eye. GPIO23 is pin 16.")
     parser.add_argument("--right-pin", type=int, default=DEFAULT_RIGHT_PIN,
                         help="BCM number for the right eye. GPIO24 is pin 18.")
+    parser.add_argument("--mode", choices=("alternate", "flashes"),
+                        default="alternate",
+                        help="alternate: each eye blinks alone in turn. "
+                             "flashes: left x3, right x3, then both.")
+    parser.add_argument("--each-seconds", type=float, default=EACH_SECONDS,
+                        help="alternate mode: seconds each eye holds the floor.")
     parser.add_argument("--flashes", type=int, default=FLASHES,
-                        help="Flashes per eye before the pair blink.")
+                        help="flashes mode: flashes per eye before the pair blink.")
     parser.add_argument("--flash-on", type=float, default=FLASH_ON)
     parser.add_argument("--flash-off", type=float, default=FLASH_OFF)
     parser.add_argument("--gap", type=float, default=GAP,
                         help="Dark pause between phases.")
     parser.add_argument("--both-seconds", type=float, default=BOTH_SECONDS,
                         help="How long the pair blink together.")
-    parser.add_argument("--blink-on", type=float, default=BLINK_ON)
-    parser.add_argument("--blink-off", type=float, default=BLINK_OFF)
+    parser.add_argument("--blink-on", type=float, default=ALT_ON,
+                        help="Lit time in a blink, either mode.")
+    parser.add_argument("--blink-off", type=float, default=ALT_OFF,
+                        help="Dark time in a blink, either mode.")
     parser.add_argument("--laps", type=int, default=0,
                         help="Laps to run. 0 runs until stopped.")
     parser.add_argument("--active-low", action="store_true",
@@ -176,30 +215,38 @@ def main() -> None:
     if args.flashes < 1:
         raise SystemExit("--flashes must be at least 1")
     for name in ("flash_on", "flash_off", "gap", "both_seconds",
-                 "blink_on", "blink_off"):
+                 "blink_on", "blink_off", "each_seconds"):
         if getattr(args, name) < 0:
             raise SystemExit(f"--{name.replace('_', '-')} cannot be negative")
     if args.blink_on <= 0 or args.blink_off <= 0:
         raise SystemExit("--blink-on and --blink-off must be above 0")
 
-    steps = pattern(
-        flashes=args.flashes,
-        flash_on=args.flash_on,
-        flash_off=args.flash_off,
-        gap=args.gap,
-        both_seconds=args.both_seconds,
-        blink_on=args.blink_on,
-        blink_off=args.blink_off,
-    )
+    if args.mode == "alternate":
+        steps = alternating(
+            each_seconds=args.each_seconds,
+            blink_on=args.blink_on,
+            blink_off=args.blink_off,
+        )
+        shape = f"each eye alone for {args.each_seconds:g}s, in turn"
+    else:
+        steps = pattern(
+            flashes=args.flashes,
+            flash_on=args.flash_on,
+            flash_off=args.flash_off,
+            gap=args.gap,
+            both_seconds=args.both_seconds,
+            blink_on=args.blink_on,
+            blink_off=args.blink_off,
+        )
+        shape = f"{args.flashes} each, then both for {args.both_seconds:g}s"
     lap_time = sum(step.seconds for step in steps)
 
     eyes = open_eyes(args.left_pin, args.right_pin, args.active_low)
     stopping = Stopping()
 
     print(
-        f"left GPIO{args.left_pin}, right GPIO{args.right_pin}. "
-        f"{args.flashes} each, then both for {args.both_seconds:g}s "
-        f"-- {lap_time:.1f}s a lap.\nCtrl+C to stop."
+        f"left GPIO{args.left_pin}, right GPIO{args.right_pin}, "
+        f"mode {args.mode}: {shape} -- {lap_time:.1f}s a lap.\nCtrl+C to stop."
     )
 
     laps = 0

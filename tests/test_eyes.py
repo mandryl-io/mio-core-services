@@ -118,3 +118,52 @@ def test_close_releases_both_pins():
 
 def test_step_is_comparable():
     assert Step(True, False, 0.1) == Step(True, False, 0.1)
+
+
+def test_alternating_never_lights_both_eyes():
+    from mio_core_services.lighting.eyes import alternating
+
+    assert not any(step.left and step.right for step in alternating())
+
+
+def test_alternating_gives_each_eye_three_seconds():
+    from mio_core_services.lighting.eyes import alternating
+
+    steps = alternating(each_seconds=3.0)
+    assert sum(step.seconds for step in steps) == pytest.approx(6.0)
+
+    # Each eye's turn is a contiguous half of the lap: everything up to the
+    # first right-hand step belongs to the left eye, and vice versa.
+    first_right = next(i for i, step in enumerate(steps) if step.right)
+    assert sum(s.seconds for s in steps[:first_right]) == pytest.approx(3.0)
+    assert sum(s.seconds for s in steps[first_right:]) == pytest.approx(3.0)
+
+
+def test_alternating_left_leads_then_right():
+    from mio_core_services.lighting.eyes import alternating
+
+    steps = alternating()
+    lit = [s for s in steps if s.left or s.right]
+    half = len(lit) // 2
+    assert all(s.left and not s.right for s in lit[:half])
+    assert all(s.right and not s.left for s in lit[half:])
+
+
+def test_alternating_phase_is_trimmed_to_length():
+    from mio_core_services.lighting.eyes import alternating
+
+    steps = alternating(each_seconds=1.0, blink_on=0.3, blink_off=0.3)
+    assert sum(s.seconds for s in steps) == pytest.approx(2.0)
+
+
+def test_alternating_actually_blinks_rather_than_holding():
+    from mio_core_services.lighting.eyes import alternating
+
+    steps = alternating(each_seconds=3.0, blink_on=0.15, blink_off=0.15)
+    assert len([s for s in steps if s.left]) == 10  # 3s / 0.3s cycle, lit half
+
+
+def test_alternating_steps_all_positive():
+    from mio_core_services.lighting.eyes import alternating
+
+    assert all(step.seconds > 0 for step in alternating())

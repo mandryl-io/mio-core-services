@@ -157,10 +157,19 @@ cd ~/mio-core-services-waveshare
 ~/ledenv/bin/python -m mio_core_services.lighting.eyes
 ```
 
-One lap is the left eye flashing three times, the right eye flashing three
-times, then both blinking together for three seconds — about 5.3 s — repeating
-until Ctrl+C. Both LEDs are driven off and the pins released on the way out,
-including on SIGTERM, so a systemd unit stops cleanly too.
+The default is `--mode alternate`: the left eye blinks on its own for three
+seconds, then the right eye blinks on its own for three seconds. They are
+never lit at the same time. Six seconds a lap, repeating until Ctrl+C.
+
+The earlier pattern is still there as `--mode flashes` — left three times,
+right three times, then both together for three seconds:
+
+```bash
+~/ledenv/bin/python -m mio_core_services.lighting.eyes --mode flashes
+```
+
+Both LEDs are driven off and the pins released on the way out, including on
+SIGTERM, so a systemd unit stops cleanly too.
 
 **Which eye is "left"** depends on how they were soldered and whether you mean
 the robot's left or the one facing you. If the wrong one goes first, swap them:
@@ -178,16 +187,18 @@ If that is the right way round, change `DEFAULT_LEFT_PIN` and
 | --- | --- | --- |
 | `--left-pin` | 23 | BCM number, pin 16 |
 | `--right-pin` | 24 | BCM number, pin 18 |
-| `--flashes` | 3 | Flashes per eye before the pair blink |
+| `--mode` | `alternate` | `alternate` or `flashes` |
+| `--each-seconds` | 3.0 | alternate: seconds each eye holds the floor |
+| `--flashes` | 3 | flashes: flashes per eye before the pair blink |
 | `--flash-on` / `--flash-off` | 0.12 / 0.18 | Flash timing |
 | `--gap` | 0.45 | Dark pause between phases |
-| `--both-seconds` | 3.0 | How long the pair blink together |
-| `--blink-on` / `--blink-off` | 0.12 | Blink timing in that phase |
+| `--both-seconds` | 3.0 | flashes: how long the pair blink together |
+| `--blink-on` / `--blink-off` | 0.15 | Blink timing, either mode |
 | `--laps` | 0 | Laps to run; 0 until stopped |
 | `--active-low` | | If the LEDs sink rather than source |
 
-The `--both-seconds` phase is trimmed to length rather than rounded up to a
-whole blink cycle, so an awkward value lasts exactly what you asked for.
+Every timed phase is trimmed to length rather than rounded up to a whole
+blink cycle, so an awkward value lasts exactly what you asked for.
 
 If the eyes come on when they should be off, they are wired to sink current —
 pass `--active-low`.
