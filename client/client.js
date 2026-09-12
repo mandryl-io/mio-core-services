@@ -90,6 +90,15 @@ async function startBrowserClient() {
       if (!participant?.local && track.kind === "audio") {
         attachBotAudio(track);
       }
+      if (participant?.local && track.kind === "audio") {
+        track
+          .applyConstraints({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          })
+          .catch(() => {});
+      }
       if (participant?.local && track.kind === "video") {
         attachLocalCam(track);
       }

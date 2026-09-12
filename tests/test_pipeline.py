@@ -130,3 +130,22 @@ def test_session_updated_accepts_live_transcribe_languages():
     }
     event = parse_server_event(json.dumps(payload))
     assert event.session.audio.input.transcription.model == "gpt-live-transcribe"
+
+
+def test_realtime_uses_server_turn_detection(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from pipecat.services.openai.realtime.events import SemanticTurnDetection
+
+    from mio_core_services.pipeline import _OpenAIRealtimeLLMService
+
+    pipeline = _pipeline()
+    llm = pipeline._create_llm()
+    assert isinstance(llm, _OpenAIRealtimeLLMService)
+    turn = llm._settings.session_properties.audio.input.turn_detection
+    assert isinstance(turn, SemanticTurnDetection)
+    assert turn.eagerness == "low"
+    assert turn.interrupt_response is True
+    assert (
+        llm._settings.session_properties.audio.input.noise_reduction.type
+        == "far_field"
+    )

@@ -143,6 +143,9 @@ class MioPipeline:
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
     fields default (WebRTC transport, gpt-realtime-2 with gpt-live-transcribe
     input transcription, system prompt). Requires ``OPENAI_API_KEY``.
+
+    Turn-taking is Realtime server-side only (``SemanticTurnDetection``); there
+    is no local Silero VAD in this pipeline.
     """
 
     def __init__(self, pipeline_config: MioPipelineConfig) -> None:
@@ -229,9 +232,18 @@ class MioPipeline:
                                 transcription=InputAudioTranscription(
                                     model=DEFAULT_TRANSCRIPTION_MODEL,
                                 ),
-                                turn_detection=SemanticTurnDetection(),
+                                turn_detection=SemanticTurnDetection(
+                                    # Realtime-only turns: no local Silero VAD.
+                                    # low eagerness waits longer before ending a
+                                    # user turn; interrupt_response lets the
+                                    # user barge in while Mio is speaking.
+                                    eagerness="low",
+                                    interrupt_response=True,
+                                ),
                                 noise_reduction=InputAudioNoiseReduction(
-                                    type="near_field"
+                                    # Laptop open speakers are closer to
+                                    # far-field than a headset mic.
+                                    type="far_field"
                                 ),
                             ),
                             output=AudioOutput(voice=DEFAULT_TTS_VOICE),
