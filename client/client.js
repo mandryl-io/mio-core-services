@@ -71,6 +71,10 @@ async function startBrowserClient() {
         onBotReady: () => {
           setStatus("Ready — start talking");
           addLog("Mio is ready.", "meta");
+          addLog(
+            "Half-duplex mic: muted while Mio speaks (laptop speaker echo).",
+            "meta",
+          );
         },
         onUserTranscript: (data) => {
           if (data.final && data.text) addLog(data.text, "user");
@@ -84,6 +88,15 @@ async function startBrowserClient() {
           addLog(message, "meta");
         },
       },
+    });
+
+    // Half-duplex: mute mic while Mio speaks so laptop speakers do not
+    // echo into Realtime speech_started and cut the turn short.
+    pcClient.on(RTVIEvent.BotStartedSpeaking, () => {
+      pcClient.enableMic(false);
+    });
+    pcClient.on(RTVIEvent.BotStoppedSpeaking, () => {
+      pcClient.enableMic(true);
     });
 
     pcClient.on(RTVIEvent.TrackStarted, (track, participant) => {

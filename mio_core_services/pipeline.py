@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pipecat.frames.frames import InputTextRawFrame, LLMRunFrame
+from pipecat.frames.frames import (
+    InputTextRawFrame,
+    LLMRunFrame,
+    UserStartedSpeakingFrame,
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -91,12 +95,25 @@ RTVIProcessor._handle_send_text = _handle_send_text_for_realtime
 
 
 class _OpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
-    """Realtime service that can take typed turns, not only mic audio."""
+    """Realtime service that can take typed turns, not only mic audio.
+
+    Turn-taking is entirely OpenAI Realtime server-side (no local Silero VAD).
+    Pipecat's default speech_started handler truncates playback and broadcasts
+    an interruption on every VAD onset — including laptop-speaker echo — so we
+    keep the user-speaking signal but skip the local cut when soft barge-in is
+    configured via ``interrupt_response=False``.
+    """
 
     async def process_frame(self, frame, direction: FrameDirection):
         if isinstance(frame, InputTextRawFrame):
             await self._send_user_text(frame.text)
         await super().process_frame(frame, direction)
+
+    async def _handle_evt_speech_started(self, evt):
+        # Soft barge-in: surface the speaking signal for UI/metrics, but do not
+        # truncate or interrupt local playback. Server ``interrupt_response``
+        # (False below) likewise leaves the in-flight response running.
+        await self.broadcast_frame(UserStartedSpeakingFrame)
 
     async def _send_user_text(self, text: str) -> None:
         text = (text or "").strip()
@@ -143,6 +160,9 @@ class MioPipeline:
     Requires a ``MioPipelineConfig`` with a ``vector_store``. Other config
     fields default (WebRTC transport, gpt-realtime-2 with gpt-live-transcribe
     input transcription, system prompt). Requires ``OPENAI_API_KEY``.
+
+    Turn-taking is Realtime server-side only (``SemanticTurnDetection``); there
+    is no local Silero VAD in this pipeline.
     """
 
     def __init__(self, pipeline_config: MioPipelineConfig) -> None:
@@ -229,9 +249,18 @@ class MioPipeline:
                                 transcription=InputAudioTranscription(
                                     model=DEFAULT_TRANSCRIPTION_MODEL,
                                 ),
-                                turn_detection=SemanticTurnDetection(),
+                                turn_detection=SemanticTurnDetection(
+                                    # Realtime-only turns: no local Silero VAD.
+                                    # low eagerness waits longer before ending a
+                                    # user turn; interrupt_response=False keeps
+                                    # Mio speaking through brief echo/noise.
+                                    eagerness="low",
+                                    interrupt_response=False,
+                                ),
                                 noise_reduction=InputAudioNoiseReduction(
-                                    type="near_field"
+                                    # Laptop open speakers are closer to
+                                    # far-field than a headset mic.
+                                    type="far_field"
                                 ),
                             ),
                             output=AudioOutput(voice=DEFAULT_TTS_VOICE),
