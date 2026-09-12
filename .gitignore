@@ -18,6 +18,9 @@ mio-faces/
 # Local medication reminders
 mio-reminders.sqlite
 
+# Session usage dumps
+logs/
+
 # JS client
 client/node_modules/
 client/dist/

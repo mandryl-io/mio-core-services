@@ -6,14 +6,19 @@ load_dotenv()
 os.environ.setdefault("PA_ALSA_PLUGHW", "1")
 
 from livekit import agents
-from livekit.agents import AgentServer, AgentSession, Agent, room_io
+from livekit.agents import Agent, AgentServer, AgentSession, room_io
 from livekit.plugins import (
-    openai,
     ai_coustics,
+    openai,
 )
 from openai.types.realtime import AudioTranscription
 
 from mio_core_services.constants import DEFAULT_INITIAL_MESSAGE, DEFAULT_SYSTEM_PROMPT
+from mio_core_services.session_usage import (
+    attach_session_usage_logging,
+    dump_session_usage,
+)
+
 
 class Assistant(Agent):
     def __init__(self) -> None:
@@ -21,7 +26,12 @@ class Assistant(Agent):
 
 server = AgentServer()
 
-@server.rtc_session(agent_name="my-agent")
+
+async def on_session_end(ctx: agents.JobContext) -> None:
+    dump_session_usage(ctx, kind="realtime", reason="session_end")
+
+
+@server.rtc_session(agent_name="my-agent", on_session_end=on_session_end)
 async def my_agent(ctx: agents.JobContext):
     session = AgentSession(
         llm=openai.realtime.RealtimeModel(
@@ -34,6 +44,7 @@ async def my_agent(ctx: agents.JobContext):
         ),
         aec_warmup_duration=0,
     )
+    attach_session_usage_logging(ctx, session, kind="realtime")
 
     await session.start(
         room=ctx.room,

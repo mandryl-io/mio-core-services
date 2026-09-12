@@ -1,4 +1,4 @@
-.PHONY: run-conversation-service eval setup
+.PHONY: run-conversation-service eval setup run-kokoro
 
 PIPECAT_HOST ?= localhost
 PIPECAT_PORT ?= 8860
@@ -12,6 +12,9 @@ EVAL_SCENARIOS ?= tests/scenarios/*.yaml
 
 setup:
 	@command -v npm >/dev/null || { sudo apt-get update && sudo apt-get install -y nodejs npm; }
+
+run-kokoro:
+	uv run --with kokoro-onnx python -m mio_core_services.kokoro_server
 
 run-conversation-service: setup
 	PIPECAT_HEADLESS=1 uv run main.py --port $(PIPECAT_PORT) & \
