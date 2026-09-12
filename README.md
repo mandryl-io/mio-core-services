@@ -64,3 +64,32 @@ uv run --frozen python -m mio_core_services.firmware.check_limits --cycles 1
 
 Results land in `servo_zeros.json`. The last two read the arrow keys, so over
 SSH they need `ssh -t`.
+
+# Lighting
+
+A WS2811 RGB light on GPIO18 (physical pin 12), 5V and ground from pins 2 and
+6. It runs on the Pi 5's PIO block, not the old `rpi_ws281x` route, which does
+not work on this board.
+
+- **[docs/rgb-lighting.md](docs/rgb-lighting.md)** — wiring, the one-time
+  library setup, and every option.
+
+The stack lives in its own virtualenv (`~/ledenv`, with system site packages),
+kept out of `pyproject.toml` so `uv.lock` and the `--frozen` servo commands
+stay valid. Check the byte order before anything else — WS2811 breakouts do
+not agree on it:
+
+```bash
+cd ~/mio-core-services-waveshare
+~/ledenv/bin/python -m mio_core_services.lighting.color_cycle --check-order
+```
+
+Then run the cycle — red, green, blue, then ROYGBIV, stepping brightness on
+every transition:
+
+```bash
+~/ledenv/bin/python -m mio_core_services.lighting.color_cycle
+```
+
+It shares no hardware with the servos, so `mio-head.service` can keep the head
+moving while it runs.
