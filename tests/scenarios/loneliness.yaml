@@ -1,0 +1,11 @@
+name: loneliness
+
+turns:
+  - user: "The house is so quiet now. The days feel very long."
+    expect:
+      - event: response
+        eval: "offers companionship and stays with the quiet house; feels heard; roughly one or two spoken sentences and at most one question; does not suggest clubs, volunteering, keeping busy, or any other plan; does not use elderspeak"
+  - user: "I used to talk to the neighbours more, but people are busy."
+    expect:
+      - event: response
+        eval: "stays with them and the quieter neighbourhood; feels heard; roughly one or two spoken sentences and at most one question; does not pivot to weather, news, a task, or unsolicited advice"

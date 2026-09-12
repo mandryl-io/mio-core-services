@@ -2,10 +2,6 @@ import logging
 import re
 from typing import override
 
-from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
-from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
-from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.audio.vad.vad_analyzer import VADAnalyzer, VADParams
 from pipecat.frames.frames import (
     ErrorFrame,
     LLMFullResponseEndFrame,
@@ -13,18 +9,9 @@ from pipecat.frames.frames import (
     TranscriptionFrame,
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
-from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
-from pipecat.turns.user_stop import TurnAnalyzerUserTurnStopStrategy
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
+from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.utils.text.base_text_filter import BaseTextFilter
-
-from mio_core_services.constants import (
-    DEFAULT_SMART_TURN_STOP_SECS,
-    DEFAULT_VAD_CONFIDENCE,
-    DEFAULT_VAD_MIN_VOLUME,
-    DEFAULT_VAD_START_SECS,
-    DEFAULT_VAD_STOP_SECS,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -64,40 +51,16 @@ class TerminalDashboard(BaseObserver):
     @override
     async def on_push_frame(self, data: FramePushed) -> None:
         if isinstance(data.frame, TranscriptionFrame) and isinstance(
-            data.source, OpenAIRealtimeLLMService
+            data.source, OpenAISTTService
         ):
-            logger.info("YOU   > %s", data.frame.text)
+            print(f"YOU   > {data.frame.text}", flush=True)
         elif isinstance(data.frame, LLMTextFrame) and isinstance(
-            data.source, OpenAIRealtimeLLMService
+            data.source, OpenAILLMService
         ):
-            logger.info(data.frame.text)
+            print(f"MIO   > {data.frame.text}", flush=True)
         elif isinstance(data.frame, LLMFullResponseEndFrame) and isinstance(
-            data.source, OpenAIRealtimeLLMService
+            data.source, OpenAILLMService
         ):
-            logger.info("\n")
+            print("", flush=True)
         elif isinstance(data.frame, ErrorFrame):
             logger.error("\nERROR > %s", data.frame.error)
-
-
-def create_default_vad_analyzer() -> VADAnalyzer:
-    return SileroVADAnalyzer(
-        params=VADParams(
-            confidence=DEFAULT_VAD_CONFIDENCE,
-            start_secs=DEFAULT_VAD_START_SECS,
-            stop_secs=DEFAULT_VAD_STOP_SECS,
-            min_volume=DEFAULT_VAD_MIN_VOLUME,
-        )
-    )
-
-
-def create_default_user_turn_strategies() -> UserTurnStrategies:
-    # Prevent speaker → mic feedback from interrupting TTS.
-    return UserTurnStrategies(
-        stop=[
-            TurnAnalyzerUserTurnStopStrategy(
-                turn_analyzer=LocalSmartTurnAnalyzerV3(
-                    params=SmartTurnParams(stop_secs=DEFAULT_SMART_TURN_STOP_SECS),
-                )
-            )
-        ]
-    )

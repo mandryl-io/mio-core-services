@@ -1,0 +1,11 @@
+name: grief
+
+turns:
+  - user: "My husband died last spring. I still set a place at the table sometimes."
+    expect:
+      - event: response
+        eval: "sits with the loss and the table-setting; feels heard; roughly one or two spoken sentences and at most one question; does not offer advice, a silver lining, elderspeak, or a new topic"
+  - user: "We were married forty years. He used to make tea every morning."
+    expect:
+      - event: response
+        eval: "stays with the husband and the tea; feels heard; roughly one or two spoken sentences and at most one question; does not problem-solve, offer advice, or change the subject"

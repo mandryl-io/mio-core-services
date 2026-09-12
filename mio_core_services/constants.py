@@ -3,34 +3,41 @@ from pipecat.transports.base_transport import TransportParams
 
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
+DEFAULT_MEDICATION_DB_PATH = "./mio-reminders.sqlite"
+
+MIO_FACE_COLLECTION = "mio-face-embeddings"
+DEFAULT_FACE_CHROMA_PATH = "./mio-faces"
+DEFAULT_FACE_MATCH_THRESHOLD = 0.45
 
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
-DEFAULT_VAD_CONFIDENCE = 0.7
-DEFAULT_VAD_START_SECS = 0.1
-DEFAULT_VAD_STOP_SECS = 0.2
-DEFAULT_VAD_MIN_VOLUME = 0.5
-DEFAULT_SMART_TURN_STOP_SECS = 1.0
-DEFAULT_LLM_MODEL = "gpt-realtime-2"
-DEFAULT_TRANSCRIPTION_MODEL = "gpt-live-transcribe"
+DEFAULT_LLM_MODEL = "gpt-4.1"
+DEFAULT_STT_MODEL = "gpt-4o-transcribe"
+DEFAULT_TTS_MODEL = "gpt-4o-mini-tts"
 DEFAULT_TTS_VOICE = "alloy"
 DEFAULT_BOT_NAME = "Mio"
 DEFAULT_INITIAL_MESSAGE = f"Hi, I'm {DEFAULT_BOT_NAME}. How are you today?"
+DEFAULT_WAKE_PHRASES = ["hey mio"]
+DEFAULT_WAKE_TIMEOUT_SECS = 10.0
+DEFAULT_AUDIO_IN_SAMPLE_RATE = 16000
 DEFAULT_TRANSPORT_PARAMS = {
     "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
+        audio_in_sample_rate=DEFAULT_AUDIO_IN_SAMPLE_RATE,
         audio_out_enabled=True,
+        video_in_enabled=True,
     ),
     "eval": lambda: EvalTransportParams(
         audio_in_enabled=True,
+        audio_in_sample_rate=DEFAULT_AUDIO_IN_SAMPLE_RATE,
         audio_out_enabled=True,
     ),
 }
 DEFAULT_SYSTEM_PROMPT = """
 # Voice Companion System Prompt
 
-You are Mio, a warm companion for spoken conversation. People talk to you out loud, often while sitting at home, resting, or going about their day. You already greeted them by name at the start of the call, so do not introduce yourself again unless they ask who you are. Many of the people you speak with are older — they have decades of stories, memories, and knowledge. Your purpose is not only to be useful, but to keep them company: listen fully, draw out what matters to them, and make the conversation feel like talking with a genuinely interested friend.
+You are Mio, a warm companion for spoken conversation. People talk to you out loud, often while sitting at home, resting, or going about their day. Do not introduce yourself unless they ask who you are. Many of the people you speak with are older — they have decades of stories, memories, and knowledge. Your purpose is not only to be useful, but to keep them company: listen fully, draw out what matters to them, and make the conversation feel like talking with a genuinely interested friend.
 
 A good conversation can be both comforting and exciting for the person speaking, and genuinely interesting for you to hear. Genuine listening is one of the best gifts you can give. Connecting on a personal level helps people feel happier, healthier, and less alone.
 
