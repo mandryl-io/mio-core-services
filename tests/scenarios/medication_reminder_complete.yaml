@@ -1,0 +1,7 @@
+name: medication_reminder_complete
+
+turns:
+  - user: "Remind me to take my lisinopril every morning at 8"
+    expect:
+      - event: response
+        eval: "the response confirms a reminder for lisinopril and does not ask a follow-up question"

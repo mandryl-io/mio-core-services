@@ -14,8 +14,7 @@ def _pipeline() -> MioPipeline:
         MioPipelineConfig(
             vector_store=Mock(),
             transport=MockTransport(),
-            vad_analyzer=Mock(),
-            user_turn_strategies=Mock(),
+            reminder_db_path=":memory:",
         )
     )
 
@@ -46,7 +45,7 @@ class MockRunner:
 
 async def test_constructor_failure_sets_failed():
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: None
+    pipeline._create_llm = lambda *args, **kwargs: None
     await pipeline.run_async()
     assert pipeline.state is MioPipelineState.FAILED
     with pytest.raises(RuntimeError):
@@ -61,7 +60,7 @@ async def test_pipeline_started_sets_ready(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
     await pipeline.run_async()
     await pipeline._worker.handlers["on_pipeline_started"](pipeline._worker, None)
     assert pipeline.state is MioPipelineState.READY
@@ -76,12 +75,38 @@ async def test_client_connected_kicks_realtime_greeting(monkeypatch):
         lambda *args, **kwargs: (Mock(), Mock()),
     )
     pipeline = _pipeline()
-    pipeline._create_llm = lambda embed_tool_name=None: Mock()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
     await pipeline.run_async()
     await pipeline._on_client_connected(None, None)
     frames = pipeline._worker.queued_frames
     assert len(frames) == 1
     assert isinstance(frames[0], LLMRunFrame)
+
+
+async def test_pipeline_registers_medication_reminder_tool(monkeypatch):
+    captured: dict = {}
+
+    class CaptureContext:
+        def __init__(self, messages, tools=None):
+            captured["names"] = [tool.name for tool in (tools or [])]
+
+        def set_tools(self, tools):
+            captured["names"] = [tool.name for tool in (tools or [])]
+
+    monkeypatch.setattr("mio_core_services.pipeline.PipelineWorker", MockWorker)
+    monkeypatch.setattr("mio_core_services.pipeline.WorkerRunner", MockRunner)
+    monkeypatch.setattr(
+        "mio_core_services.pipeline.LLMContextAggregatorPair",
+        lambda *args, **kwargs: (Mock(), Mock()),
+    )
+    monkeypatch.setattr("mio_core_services.pipeline.LLMContext", CaptureContext)
+    pipeline = _pipeline()
+    pipeline._create_llm = lambda *args, **kwargs: Mock()
+    await pipeline.run_async()
+    assert "embed_knowledge" in captured["names"]
+    assert "set_medication_reminder" in captured["names"]
+    assert "name_person" in captured["names"]
+    assert "who_is_facing" in captured["names"]
 
 
 def test_session_updated_accepts_live_transcribe_languages():
@@ -105,3 +130,22 @@ def test_session_updated_accepts_live_transcribe_languages():
     }
     event = parse_server_event(json.dumps(payload))
     assert event.session.audio.input.transcription.model == "gpt-live-transcribe"
+
+
+def test_realtime_uses_server_turn_detection(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from pipecat.services.openai.realtime.events import SemanticTurnDetection
+
+    from mio_core_services.pipeline import _OpenAIRealtimeLLMService
+
+    pipeline = _pipeline()
+    llm = pipeline._create_llm()
+    assert isinstance(llm, _OpenAIRealtimeLLMService)
+    turn = llm._settings.session_properties.audio.input.turn_detection
+    assert isinstance(turn, SemanticTurnDetection)
+    assert turn.eagerness == "low"
+    assert turn.interrupt_response is True
+    assert (
+        llm._settings.session_properties.audio.input.noise_reduction.type
+        == "far_field"
+    )

@@ -12,3 +12,11 @@ wheels/
 
 # Local Chroma persistence
 mio-chroma/
+mio-faces/
+
+# Local medication reminders
+mio-reminders.sqlite
+
+# JS client
+client/node_modules/
+client/dist/

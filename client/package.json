@@ -1,0 +1,14 @@
+{
+  "name": "mio-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node client.js"
+  },
+  "dependencies": {
+    "@pipecat-ai/client-js": "^1.13.0",
+    "@pipecat-ai/small-webrtc-transport": "^1.10.6",
+    "esbuild": "^0.25.9"
+  }
+}

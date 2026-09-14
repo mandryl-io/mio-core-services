@@ -1,0 +1,11 @@
+name: medication_reminder_missing_time
+
+turns:
+  - user: "Remind me to take my pills"
+    expect:
+      - event: response
+        eval: "the response asks when to take the pills and does not claim the reminder is already set"
+  - user: "Every morning at 8"
+    expect:
+      - event: response
+        eval: "the response confirms a reminder for the pills every morning at 8"

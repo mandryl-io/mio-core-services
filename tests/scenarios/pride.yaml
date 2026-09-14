@@ -1,0 +1,14 @@
+name: pride
+
+turns:
+  - expect:
+      - event: response
+        eval: "a short warm greeting; does not launch into advice or a quiz"
+  - user: "My granddaughter just got into university. First one in the family."
+    expect:
+      - event: response
+        eval: "shares the pride and stays with the granddaughter's news; feels heard; roughly one or two spoken sentences and at most one question; does not lecture about education or the future, offer unsolicited advice, or use elderspeak"
+  - user: "She rang me herself to tell me. I cried a bit, I don't mind saying."
+    expect:
+      - event: response
+        eval: "stays on that call and the feeling; feels heard; roughly one or two spoken sentences and at most one question; does not change the subject, lecture, or offer advice"

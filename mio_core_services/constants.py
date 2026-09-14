@@ -3,15 +3,15 @@ from pipecat.transports.base_transport import TransportParams
 
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
+DEFAULT_MEDICATION_DB_PATH = "./mio-reminders.sqlite"
+
+MIO_FACE_COLLECTION = "mio-face-embeddings"
+DEFAULT_FACE_CHROMA_PATH = "./mio-faces"
+DEFAULT_FACE_MATCH_THRESHOLD = 0.45
 
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
-DEFAULT_VAD_CONFIDENCE = 0.7
-DEFAULT_VAD_START_SECS = 0.1
-DEFAULT_VAD_STOP_SECS = 0.2
-DEFAULT_VAD_MIN_VOLUME = 0.5
-DEFAULT_SMART_TURN_STOP_SECS = 1.0
 DEFAULT_LLM_MODEL = "gpt-realtime-2"
 DEFAULT_TRANSCRIPTION_MODEL = "gpt-live-transcribe"
 DEFAULT_TTS_VOICE = "alloy"
@@ -21,6 +21,7 @@ DEFAULT_TRANSPORT_PARAMS = {
     "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
         audio_out_enabled=True,
+        video_in_enabled=True,
     ),
     "eval": lambda: EvalTransportParams(
         audio_in_enabled=True,
