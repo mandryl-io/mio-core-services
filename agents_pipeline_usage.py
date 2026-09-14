@@ -51,7 +51,6 @@ async def my_agent(ctx: agents.JobContext):
         tts=openai.TTS(
             model="tts-1",
             voice=DEFAULT_TTS_VOICE,
-            response_format="pcm",
         ),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
