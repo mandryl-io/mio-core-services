@@ -1,0 +1,421 @@
+# Servo Calibration
+
+Tools live under `mio_core_services/firmware/`, grouped by job:
+
+| Folder | When you use it |
+| --- | --- |
+| `setup/` | First contact with the bus: scan, read, IDs, a one-shot move |
+| `calibration/` | Record zeros and limits, then write them into EEPROM |
+| `runtime/` | Boot motion and shared protocol/helpers — not usually run by hand |
+| `tuning/` | Jitter still unresolved: measure, inspect, and set the position loop |
+
+Run a tool the same way, with the folder in the module path:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint --id 2 --keys up-down
+```
+
+Defaults target the working link — `/dev/ttyAMA0` at 115200 — so `--port` and
+`--baudrate` are only needed on other hardware. See
+[waveshare-servo-hat.md](waveshare-servo-hat.md) for the link itself.
+
+Over SSH, tools that read the arrow keys need a real terminal (`TTY` below).
+That is a keyboard TTY, not USB serial:
+
+```bash
+ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
+  ~/.local/bin/uv run --frozen python -m mio_core_services.firmware.calibration.check_limits'
+```
+
+`uv` is not on `PATH` in a non-interactive shell, hence the absolute path.
+
+## The tools
+
+### Setup
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `scan_servos` | no | Lists every ID answering on the bus, with positions |
+| `read_servo` | no | Reads one servo's position, `--diagnose` adds link facts |
+| `encode_servo_id` | no | Writes a new ID to EEPROM |
+| `move_servo` | no | Moves one servo to an absolute position |
+| `move_system` | no | Moves both axes once, to confirm the bus is alive |
+
+### Calibration
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `calibrate_joint` | **yes** | Guided pass: hold other axes, centre, fit part, set zero and limits |
+| `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
+| `apply_limits` | no | Writes the calibrated limits into the servos' own EEPROM |
+| `set_zero` | no | Records the current position as that servo's zero |
+| `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
+| `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
+| `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
+| `teleop_servo` | **yes** | Live arrow-key control of one servo |
+| `system_teleop` | **yes** | Live control of both axes, clamped to the saved limits |
+
+### Runtime
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `idle_motion` | no | Natural head movement inside the calibrated range; started by `mio-head.service` |
+| `sts3215` | — | Protocol and bus helper, imported by the other tools |
+| `servo_zeros_io` | — | Read/merge `servo_zeros.json` |
+| `jog` | — | Shared jogging timing, keys, and velocity steering |
+
+### Tuning
+
+Jitter while travelling is not fully resolved. These write and measure the
+servo's onboard position loop; they are not a software PID on the Pi.
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
+| `jitter_test` | no | Measures how much a held position actually moves |
+| `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
+
+`set_zero`, `calibrate_joint`, `calibrate_range`, and `check_limits` **merge** into
+`servo_zeros.json`; `zero_servos` rewrites it wholesale, so it will drop servos
+you are not currently calibrating.
+
+## Calibrating a joint in one pass
+
+`calibrate_joint` runs the whole sequence for one axis, holding the others
+steady so the joint is calibrated in the pose it will actually rest in.
+
+Head pitch, with the neck held at its zero and the up/down arrows driving it:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint \
+  --id 2 --keys up-down
+```
+
+It:
+
+1. Drives every other servo in the file to its recorded zero and holds it
+2. Swings the bare shaft to both extremes and returns to its electrical
+   centre (2048), so you can see the centre really is halfway, then waits for
+   **Enter** while you fit the part square to it. `--skip-prove` parks without
+   the swing
+3. Jogs to the joint's **true centre** — Enter records it as the zero
+4. Jogs to **maximum up**, Enter; returns to centre
+5. Jogs to **maximum down**, Enter
+6. Sweeps three times, pausing a second at each stop
+7. Merges zero/min/max into `servo_zeros.json`
+
+`--keys left-right` for a yaw axis, `--hold 1` to name which servos to hold
+explicitly, `--centre` to park somewhere other than 2048. `q` aborts at any
+point without writing.
+
+### Jogging smoothly
+
+Jogging re-issues the goal every 20 ms. If the servo is commanded much faster
+than the goal actually advances, it sprints to each one, stops, and waits —
+50 times a second, which feels like jitter and is worst on a loaded axis.
+
+Every jogging tool therefore derives its tracking speed from the jog rate,
+`step / 0.02` plus a little headroom, rather than using a fixed value. The
+shared helper is `firmware/runtime/jog.py`; `zero_servos`, `teleop_servo` and
+`system_teleop` previously paired step 5 with a fixed speed of 2400, roughly
+ten times the rate the goal actually moved. Changing `--step` changes it
+to match, so smaller steps stay smooth:
+
+| `--step` | ticks/s | commanded speed |
+| --- | --- | --- |
+| 2 | 100 | 125 |
+| 4 (default) | 200 | 250 |
+| 8 | 400 | 500 |
+
+If it still feels lumpy, drop `--step 2` for finer motion, or `--jog-acc 20`
+for gentler ramps — too low and it visibly lags the keys. `--jog-speed`
+overrides the automatic value, and `--travel-speed` controls the proving swing
+and the returns to centre, which are not jogged and stay fast.
+
+Limits are sorted, so it does not matter which key drives which way, and the
+zero must fall between them or it refuses to save.
+
+## Calibrating a joint step by step
+
+The order matters: the zero is set with the part physically fitted, and the
+limits are measured from that zero.
+
+### 1. Confirm the servo is on the bus
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
+```
+
+Never assume an ID. A silent read on `--id 1` usually means the servo is on a
+different ID, not that the link is broken.
+
+### 2. Centre the shaft before fitting the part
+
+Fit the horn with the servo at its electrical centre (2048) so travel is
+symmetric. Move it there, leaving torque on so it cannot drift while you work:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.setup.move_servo --id 1 --position 2048
+```
+
+### 3. Record the zero
+
+With the part fitted and the joint at its true rest position, store it:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.set_zero --id 1
+```
+
+This is the mechanism's zero, not the servo's. It will not usually be 2048 —
+the difference is the mounting offset, and recording it is the whole point.
+
+Pass `--position` to store a specific value, or `--release` to drop torque
+afterwards.
+
+### 4. Set the travel limits
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_range --id 1
+```
+
+Centres, asks you to jog to one limit and press Enter, returns to centre, asks
+for the other, then sweeps three times pausing a second at each stop. `q`
+aborts without writing.
+
+Limits are sorted, so it does not matter which way the arrow keys drive the
+joint. The zero must fall between them or it refuses to save.
+
+Useful flags: `--step 2` for finer jogging, `--speed 150` for a slower sweep.
+
+### 5. Rehearse the limits
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.check_limits --speed 120 --cycles 1
+```
+
+**Any key stops every servo where it stands**, checked continuously during
+travel rather than only at waypoints. Torque stays on so nothing drops.
+
+With no `--cycles` it loops until stopped. Start slow and single-cycle on a
+newly assembled mechanism, with a hand near the keyboard.
+
+### 6. Torque release
+
+Every movement tool now **goes limp when it exits**, including on abort. A servo
+holding a position the mechanism already supports has nothing to do but correct
+its own sensor noise, which is what makes it buzz while stationary.
+
+Pass `--keep-torque` when you need it to hold — fitting a part to a centred
+shaft, or a joint that cannot support its own weight:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint \
+  --id 2 --keys up-down --keep-torque
+```
+
+To release manually at any time:
+
+```bash
+uv run --frozen python -c "
+from mio_core_services.firmware.runtime.sts3215 import STS3215Bus
+with STS3215Bus(release_ids=[1, 2]):
+    pass"
+```
+
+## Driving both axes
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.system_teleop
+```
+
+Left/right (or `a`/`d`) drives yaw, up/down (or `w`/`s`) drives pitch, and both
+start at their recorded zeros. Jogging is **clamped to the calibrated limits**
+from `servo_zeros.json`, so it cannot be driven into a stop — this is the safest
+way to exercise the mechanism and watch for jitter.
+
+`--free` ignores the limits and allows the full 0-4095 travel. `--speed` sets
+the jog velocity in ticks/s (default 600, about 53 deg/s), `--keep-torque` to
+stay energised on exit.
+
+### Why the teleop tools jog by velocity
+
+Holding a key sends **one** goal, at the travel limit in that direction, and
+lets the servo's own speed control cruise there. Releasing it reads the current
+position and stops on it.
+
+The obvious alternative — nudging the goal a few ticks every 20 ms — makes the
+servo accelerate and decelerate fifty times a second. It never reaches a steady
+speed, and the result buzzes, worst on a loaded axis. `zero_servos`,
+`calibrate_joint` and `calibrate_range` still step, because there precision
+matters more than smoothness and the moves are short.
+
+## Hard travel limits
+
+Clamping in Python only protects against the code that does the clamping. The
+servo will also enforce limits itself, from EEPROM addresses 9 and 11, and that
+still holds if a process crashes mid-move or sends a bad goal:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits --verify
+```
+
+The first writes each servo's calibrated `min`/`max` and reads them back to
+confirm; the second only reports. `--factory` restores the full 0-4095 travel.
+
+Limits apply in position mode only (address 33 = 0), which `--verify` checks.
+Anything that drives the servos autonomously should verify before moving.
+
+## Idle motion
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits
+uv run --frozen python -m mio_core_services.firmware.runtime.idle_motion
+```
+
+Runs continuously, picking from six behaviours rather than sweeping:
+
+| Behaviour | Share | What it does |
+| --- | --- | --- |
+| glance | 23% | Look somewhere nearby and hold it |
+| nod | 20% | Two or three quick dips of the chin, then settle |
+| rest | 17% | Settle near centre for 4-9 seconds |
+| tilt | 15% | The curious head-cock: turn a little, lift the chin, hold |
+| scan | 13% | Sweep slowly across in stages, pausing as if reading the room |
+| perk | 13% | Snap round at something, then relax back |
+
+A behaviour never repeats immediately, and each holds its pose with a slow
+few-tick drift so it reads as alive rather than frozen. Acceleration is set per
+step — 15 for a slow scan, 80 for a perk — which is what makes the difference
+between smooth and mechanical.
+
+Three layers keep it inside the range, so no single mistake can drive the
+mechanism into a stop:
+
+1. It refuses to start unless each servo's **EEPROM limits match the
+   calibration**. `--no-verify` skips that check.
+2. Targets are drawn from a range **inset by `--margin`** (8% of travel at each
+   end by default), so normal motion never approaches the limits.
+3. Every goal is **clamped** before it is sent, and a clamp that actually fires
+   is reported to stderr as the bug it would be.
+
+`--seconds` bounds the run, `--seed` repeats a sequence, `--margin 0.15` stays
+further clear. It returns to centre and goes limp on exit, and handles SIGTERM
+so systemd can stop it cleanly.
+
+## Jitter while travelling
+
+Ranked by what actually causes it:
+
+1. **Supply sag.** Servos draw far more current accelerating under load than
+   holding still. A supply that cannot hold voltage through that spike makes
+   the servo latch an undervoltage condition and cut torque, which looks like
+   jitter rather than a power fault. Measure it before tuning anything:
+
+   ```bash
+   uv run --frozen python -m mio_core_services.firmware.tuning.monitor_servo --id 1
+   ```
+
+   Jog the joint while it samples. More than about 1 V of sag points at the
+   supply or the wiring back to it.
+
+2. **Crawling speed.** A servo cruising is smoother than one creeping near
+   stall. The teleop default is 900 ticks/s (about 79 deg/s); raising it often
+   cleans up motion that stutters at low speed.
+
+3. **The position loop.** See below.
+
+4. **Backlash.** Mechanical, and worse under load, so it varies by sector as
+   the head's weight shifts.
+
+## Measuring jitter
+
+Before tuning anything, get a number:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.tuning.jitter_test --id 1
+```
+
+It holds the servo's zero and samples the position for six seconds with torque
+on, then six with torque off, reporting peak-to-peak and RMS movement for each.
+
+| Result | Meaning |
+| --- | --- |
+| Under 3 ticks driven | Not jittering; that is encoder resolution |
+| Driven noisy, limp steady | The position loop is hunting. Tune it |
+| Noisy both ways | Mechanical or electrical. Tuning will not help |
+
+The third case means backlash, a loose horn, or supply sag, and the voltage and
+fault counts printed alongside say which.
+
+## Jitter while stationary
+
+If a servo buzzes or hunts while holding still, it is correcting position errors
+finer than it can usefully resolve. Two settings control this, both EEPROM:
+
+| Register | Addr | Factory | Effect |
+| --- | --- | --- | --- |
+| CW / CCW dead zone | 26, 27 | 1 | How far off target before it corrects. Wider is calmer, coarser |
+| P coefficient | 21 | 32 | Correction strength. Lower is softer, slower to settle |
+
+Inspect the current values:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1
+```
+
+Restore the reviewed baseline — P 32, I 0, D 32, punch 16, dead zone 1:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1 --baseline
+```
+
+Then tune damping upward from there, measuring at each step:
+
+```bash
+for d in 32 40 48 64; do
+  uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1 --d $d
+  uv run --frozen python -m mio_core_services.firmware.tuning.jitter_test --id 1
+done
+```
+
+**Widening the dead zone and lowering punch makes this worse, not better.** The
+servo closes its loop across a gear train with 10-15 counts of lost motion, so
+a dead zone of 4 sits inside a band where the loop has no mechanical authority,
+and punch is the minimum torque needed to break static friction — lowering it
+lets error build until the load breaks free and shoots through the backlash.
+Leave `I` at 0; integral action on top of backlash winds up and hunts worse.
+
+`--factory` restores the manufacturer defaults for every register the tool
+knows.
+
+These are **EEPROM writes and persist across power cycles**. The tool disables
+torque and releases the EEPROM lock around the write, prints before and after
+values, and re-locks. Try releasing torque first — if the joint holds its own
+weight, that fixes the buzzing without changing anything permanent.
+
+## servo_zeros.json
+
+```json
+{
+  "1": { "zero": 1659, "min": 1059, "max": 2259 },
+  "2": { "zero": 3114, "min": 2600, "max": 3600 }
+}
+```
+
+Positions are encoder ticks: 4096 per revolution, so **11.38 ticks per degree**
+and 2048 is the electrical centre. `min` and `max` are absolute positions, not
+offsets, and must bracket `zero`.
+
+The file is machine-specific — it describes one physical build. Commit it if
+there is only one robot; keep it out of the repo if there are several.
+
+## Notes
+
+- **Torque is left on** after jogging, aborting, or a centring move. That is
+  deliberate. Release it explicitly when you are done.
+- **`sweep_servos` drives to the recorded limits**, so bad limits are a
+  collision. Prove them with `check_limits` first.
+- **Two servos on ID 1 cannot share a bus** — both answer every packet.
+  Separate them with `encode_servo_id` before chaining.

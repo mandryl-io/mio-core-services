@@ -27,3 +27,41 @@ pipecat eval run tests/scenarios/*.yaml
 ```
 
 The default judge is Ollama (`gemma2:9b`). Pull it with `ollama pull gemma2:9b` if needed.
+
+# Servos
+
+Two STS3215 bus servos on a Waveshare `Bus Servo Driver HAT (A)`:
+
+| ID | Axis | Joint |
+| --- | --- | --- |
+| 1 | Yaw | Neck |
+| 2 | Pitch | Head |
+
+- **[docs/servo-calibration.md](docs/servo-calibration.md)** — the calibration
+  workflow and firmware tools, grouped as setup, calibration, runtime, and
+  tuning.
+- **[docs/waveshare-servo-hat.md](docs/waveshare-servo-hat.md)** — HAT setup,
+  ESP32 firmware flashing, and link troubleshooting.
+
+A factory-fresh HAT will not work over the GPIO UART until the ESP32 is flashed
+with Waveshare's transparent-transmission firmware, and a Raspberry Pi 5 needs
+`dtparam=uart0=on` with `/dev/ttyAMA0` named explicitly — `/dev/serial0` points
+at the debug header there. Both are one-time steps, covered in the HAT doc.
+
+Check the bus first:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
+```
+
+Then calibrate a joint — record its zero with the part fitted, set the travel
+limits, and rehearse them:
+
+```bash
+uv run --frozen python -m mio_core_services.firmware.calibration.set_zero --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_range --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.check_limits --cycles 1
+```
+
+Results land in `servo_zeros.json`. The last two read the arrow keys, so over
+SSH they need `ssh -t`.

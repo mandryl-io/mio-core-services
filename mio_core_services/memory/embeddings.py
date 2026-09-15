@@ -11,6 +11,18 @@ from mio_core_services.constants import (
     DEFAULT_EMBEDDING_MODEL,
 )
 
+# Loading a sentence-transformer is slow and the models are stateless, so
+# every embedder sharing a model name shares one instance.
+_MODEL_CACHE: dict[str, Any] = {}
+
+
+def _sentence_transformer(model_name: str) -> Any:
+    model = _MODEL_CACHE.get(model_name)
+    if model is None:
+        model = SentenceTransformer(model_name)
+        _MODEL_CACHE[model_name] = model
+    return model
+
 
 class MioTextEmbedder(BaseModel):
     """Interface for turning text into vectors.
@@ -28,27 +40,22 @@ class MioTextEmbedder(BaseModel):
         """Return a (len(texts), dimensions) array, one row per input text."""
 
 
-def _sentence_transformer(model_name: str) -> SentenceTransformer:
-    return SentenceTransformer(model_name)
-
-
 class SentenceTransformerEmbedder(MioTextEmbedder):
-    """Local sentence-transformers backend."""
+    """Local sentence-transformers backend with a process-wide model cache."""
 
     model_name: str = DEFAULT_EMBEDDING_MODEL
     dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS
 
-    _model: SentenceTransformer = PrivateAttr()
+    _model: Any = PrivateAttr()
 
     def model_post_init(self, __context: Any) -> None:
-        model = _sentence_transformer(self.model_name)
-        model_dims = model.get_sentence_embedding_dimension()
-        if isinstance(model_dims, int) and model_dims != self.dimensions:
+        self._model = _sentence_transformer(self.model_name)
+        model_dimensions = int(self._model.get_sentence_embedding_dimension())
+        if model_dimensions != self.dimensions:
             raise ValueError(
-                f"embedder model {self.model_name!r} produces {model_dims}-d "
-                f"vectors, expected {self.dimensions}"
+                f"{self.model_name} produces {model_dimensions}-d vectors, "
+                f"but dimensions={self.dimensions}"
             )
-        self._model = model
 
     def embed(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:

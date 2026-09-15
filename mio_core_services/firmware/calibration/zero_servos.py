@@ -1,0 +1,211 @@
+"""Teleop each STS3215 to its physical zero, record ± travel, and write JSON."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+
+from mio_core_services.firmware.runtime import jog
+from mio_core_services.firmware.runtime.jog import (
+    CONFIRM_KEYS,
+    HOLD_DT,
+    JOG_DT,
+    LEFT_KEYS,
+    QUIT_KEYS,
+    RIGHT_KEYS,
+    RawTerminal,
+)
+from mio_core_services.firmware.runtime.sts3215 import (
+    DEFAULT_BAUDRATE,
+    DEFAULT_PORT,
+    POSITION_MAX,
+    STS3215Bus,
+)
+
+
+def _status(message: str) -> None:
+    sys.stdout.write(f"\r\x1b[K{message}")
+    sys.stdout.flush()
+
+
+def _read_position(bus: STS3215Bus, servo_id: int, port: str) -> int:
+    try:
+        return bus.position(servo_id=servo_id)
+    except TimeoutError:
+        raise SystemExit(
+            f"No reply from servo {servo_id} on {port}. "
+            "Check external power and the servo ID. For a Waveshare HAT (A) "
+            "on /dev/serial0, use ESP32 transparent-transmission mode at 115200 baud."
+        )
+
+
+def _parse_offset(token: str) -> int:
+    token = token.strip().replace("±", "").lstrip("+")
+    if token.startswith("-"):
+        token = token[1:]
+    value = int(token)
+    if value < 0:
+        raise ValueError("travel must be >= 0")
+    return value
+
+
+def _limits_from_travel(zero: int, text: str) -> tuple[int, int]:
+    text = text.strip().replace(" ", "")
+    if not text:
+        return 0, POSITION_MAX
+    if "/" in text:
+        left, right = text.split("/", 1)
+        plus, minus = _parse_offset(left), _parse_offset(right)
+    else:
+        plus = minus = _parse_offset(text)
+    lo = max(0, zero - minus)
+    hi = min(POSITION_MAX, zero + plus)
+    if lo > hi:
+        raise ValueError(f"limits invert: min {lo} > max {hi}")
+    return lo, hi
+
+
+def _prompt_limits(zero: int) -> tuple[int, int]:
+    prompt = "± travel from zero in ticks (300 or +400/-200, empty = no extra limit): "
+    while True:
+        try:
+            text = input(prompt)
+        except EOFError:
+            return 0, POSITION_MAX
+        try:
+            lo, hi = _limits_from_travel(zero, text)
+        except ValueError as exc:
+            print(f"Invalid travel: {exc}")
+            continue
+        print(f"limits {lo}–{hi}")
+        return lo, hi
+
+
+def _teleop_until_zero(
+    bus: STS3215Bus,
+    terminal: RawTerminal,
+    servo_id: int,
+    port: str,
+    step: int,
+    speed: int,
+) -> int | None:
+    position = _read_position(bus, servo_id, port)
+    bus.prepare(servo_id=servo_id, speed=speed, acc=50)
+    bus.set_goal(position, servo_id=servo_id)
+    sys.stdout.write(
+        f"Servo {servo_id}: hold left/right to jog, Enter to record zero, q quits.\r\n"
+    )
+    sys.stdout.flush()
+    direction = 0
+    last_hold = 0.0
+    while True:
+        key = terminal.poll_key(JOG_DT)
+        now = time.monotonic()
+        confirmed = False
+        quit_requested = False
+        while key is not None:
+            if key in LEFT_KEYS:
+                direction = -1
+                last_hold = now
+            elif key in RIGHT_KEYS:
+                direction = 1
+                last_hold = now
+            elif key in CONFIRM_KEYS:
+                confirmed = True
+                break
+            elif key in QUIT_KEYS:
+                quit_requested = True
+                break
+            key = terminal.poll_key(0)
+        if quit_requested:
+            return None
+        if confirmed:
+            actual = _read_position(bus, servo_id, port)
+            sys.stdout.write(f"\r\x1b[KServo {servo_id} zero = {actual}\r\n")
+            sys.stdout.flush()
+            return actual
+        if now - last_hold > HOLD_DT:
+            direction = 0
+            continue
+        position = max(0, min(POSITION_MAX, position + direction * step))
+        bus.set_goal(position, servo_id=servo_id)
+        _status(f"servo {servo_id} -> {position}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        type=int,
+        metavar="ID",
+        help="Servo IDs to zero, in order.",
+    )
+    parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--baudrate", type=int, default=DEFAULT_BAUDRATE)
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="servo_zeros.json",
+        help="JSON file to write recorded zero positions and min/max limits.",
+    )
+    parser.add_argument(
+        "--step",
+        type=int,
+        default=5,
+        help="Ticks added per jog tick while a key is held (4096 = 360°).",
+    )
+    parser.add_argument(
+        "--speed",
+        type=int,
+        help="Tracking speed. Defaults to match the jog rate, which is what "
+        "keeps jogging smooth.",
+    )
+    parser.add_argument(
+        "--keep-torque",
+        action="store_true",
+        dest="hold_torque",
+        help="Leave torque engaged when this exits, instead of going limp.",
+    )
+    args = parser.parse_args()
+    if args.step < 1:
+        raise SystemExit("--step must be >= 1")
+    if len(args.ids) != len(set(args.ids)):
+        raise SystemExit("Servo IDs must be unique.")
+    if not sys.stdin.isatty():
+        raise SystemExit("Need a TTY for arrow-key teleop.")
+
+    speed = args.speed or jog.jog_speed_for(args.step)
+
+    records: dict[str, dict[str, int]] = {}
+    release_ids = () if args.hold_torque else args.ids
+    with STS3215Bus(args.port, args.baudrate, release_ids=release_ids) as bus:
+        for servo_id in args.ids:
+            with RawTerminal() as terminal:
+                recorded = _teleop_until_zero(
+                    bus,
+                    terminal,
+                    servo_id,
+                    args.port,
+                    args.step,
+                    speed,
+                )
+            if recorded is None:
+                sys.stdout.write("Stopped.\n")
+                break
+            lo, hi = _prompt_limits(recorded)
+            records[str(servo_id)] = {"zero": recorded, "min": lo, "max": hi}
+
+    if not records:
+        raise SystemExit("No zeros recorded.")
+
+    with open(args.output, "w") as handle:
+        json.dump(records, handle, indent=2)
+        handle.write("\n")
+    sys.stdout.write(f"Wrote {len(records)} servo(s) to {args.output}\n")
+
+
+if __name__ == "__main__":
+    main()
