@@ -3,7 +3,7 @@
 import argparse
 import time
 
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     BROADCAST_ID,
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,

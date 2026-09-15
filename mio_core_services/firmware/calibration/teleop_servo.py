@@ -10,14 +10,14 @@ import termios
 import time
 import tty
 
-from mio_core_services.firmware import jog
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime import jog
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     POSITION_MAX,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import load_zeros
+from mio_core_services.firmware.runtime.servo_zeros_io import load_zeros
 
 LEFT_KEYS = frozenset({"\x1b[D", "\x1bOD", "a", "h"})
 RIGHT_KEYS = frozenset({"\x1b[C", "\x1bOC", "d", "l"})

@@ -16,14 +16,17 @@ import sys
 import time
 from dataclasses import dataclass
 
-from mio_core_services.firmware.apply_limits import check
-from mio_core_services.firmware.servo_zeros_io import degrees_from_ticks
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.calibration.apply_limits import check
+from mio_core_services.firmware.runtime.servo_zeros_io import (
+    ServoRange,
+    degrees_from_ticks,
+    load_zeros,
+)
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import ServoRange, load_zeros
 
 ARRIVE_TOLERANCE = 25
 POLL = 0.05

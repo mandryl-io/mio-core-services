@@ -5,7 +5,7 @@ import os
 import stat
 from pathlib import Path
 
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     STS3215Bus,

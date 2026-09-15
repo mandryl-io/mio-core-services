@@ -1,6 +1,14 @@
 """Shared timing for arrow-key jogging, and the speed that keeps it smooth."""
 
+from __future__ import annotations
+
+import os
+import select
+import sys
+import termios
 import time
+import tty
+from typing import Self
 
 # How often a held key advances the goal, and how long after the last keypress
 # the servo is considered to have stopped.
@@ -13,6 +21,36 @@ HOLD_DT = 0.12
 # second, which reads as jitter and is worst on a gravity-loaded axis.
 JOG_SPEED_HEADROOM = 1.25
 MIN_JOG_SPEED = 50
+
+LEFT_KEYS = frozenset({"\x1b[D", "\x1bOD", "a", "h"})
+RIGHT_KEYS = frozenset({"\x1b[C", "\x1bOC", "d", "l"})
+CONFIRM_KEYS = frozenset({"\r", "\n"})
+QUIT_KEYS = frozenset({"q", "\x03"})
+
+
+class RawTerminal:
+    def __enter__(self) -> Self:
+        self.old = termios.tcgetattr(sys.stdin.fileno())
+        tty.setraw(sys.stdin.fileno())
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, self.old)
+
+    def read_key(self) -> str:
+        fd = sys.stdin.fileno()
+        ch = os.read(fd, 1)
+        if ch != b"\x1b":
+            return ch.decode("latin1")
+        seq = ch
+        while len(seq) < 3 and select.select([fd], [], [], 0.05)[0]:
+            seq += os.read(fd, 1)
+        return seq.decode("latin1")
+
+    def poll_key(self, timeout: float) -> str | None:
+        if not select.select([sys.stdin.fileno()], [], [], timeout)[0]:
+            return None
+        return self.read_key()
 
 
 def jog_speed_for(step: int) -> int:

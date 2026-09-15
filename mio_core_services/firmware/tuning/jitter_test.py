@@ -12,15 +12,14 @@ import argparse
 import statistics
 import time
 
-from mio_core_services.firmware.servo_zeros_io import degrees_from_ticks
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.servo_zeros_io import degrees_from_ticks, load_zeros
+from mio_core_services.firmware.runtime.sts3215 import (
     ADDR_PRESENT_VOLTAGE,
     ADDR_STATUS,
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import load_zeros
 
 
 def _sample(bus: STS3215Bus, servo_id: int, seconds: float) -> tuple[list[int], list[float], int]:
@@ -137,8 +136,8 @@ def main() -> None:
         print(
             "  It is much steadier limp than driven, so the position loop is\n"
             f"  hunting. Restore the baseline, then raise damping:\n"
-            f"    tune_servo --id {args.id} --baseline\n"
-            f"    tune_servo --id {args.id} --d 48"
+            f"    python -m mio_core_services.firmware.tuning.tune_servo --id {args.id} --baseline\n"
+            f"    python -m mio_core_services.firmware.tuning.tune_servo --id {args.id} --d 48"
         )
 
 

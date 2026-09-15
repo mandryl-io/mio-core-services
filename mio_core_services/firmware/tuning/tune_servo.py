@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     ADDR_CCW_DEAD_ZONE,
     ADDR_OVERLOAD_TORQUE,
     ADDR_PROTECTION_TIME,

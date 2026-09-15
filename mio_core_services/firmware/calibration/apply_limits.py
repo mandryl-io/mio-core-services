@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import argparse
 
-from mio_core_services.firmware.servo_zeros_io import degrees_from_ticks
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.servo_zeros_io import degrees_from_ticks, load_zeros
+from mio_core_services.firmware.runtime.sts3215 import (
     ADDR_MAX_ANGLE_LIMIT,
     ADDR_MIN_ANGLE_LIMIT,
     ADDR_MODE,
@@ -20,7 +20,6 @@ from mio_core_services.firmware.sts3215 import (
     POSITION_MAX,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import load_zeros
 
 
 def read_limits(bus: STS3215Bus, servo_id: int) -> tuple[int, int, int]:

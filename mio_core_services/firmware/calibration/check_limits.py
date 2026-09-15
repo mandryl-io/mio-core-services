@@ -6,13 +6,13 @@ import argparse
 import sys
 import time
 
-from mio_core_services.firmware.servo_zeros_io import degrees_from_ticks
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.jog import RawTerminal
+from mio_core_services.firmware.runtime.servo_zeros_io import degrees_from_ticks, load_zeros
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     STS3215Bus,
 )
-from mio_core_services.firmware.zero_servos import RawTerminal, load_zeros
 
 ARRIVE_TOLERANCE = 20
 

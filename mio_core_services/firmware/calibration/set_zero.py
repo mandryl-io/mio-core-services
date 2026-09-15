@@ -2,8 +2,8 @@
 
 import argparse
 
-from mio_core_services.firmware.servo_zeros_io import merge_record, read_records
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.servo_zeros_io import merge_record, read_records
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     POSITION_MAX,

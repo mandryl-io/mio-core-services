@@ -6,19 +6,7 @@ import argparse
 import sys
 import time
 
-from mio_core_services.firmware.jog import jog_speed_for
-from mio_core_services.firmware.servo_zeros_io import (
-    degrees_from_ticks,
-    merge_record,
-    read_records,
-)
-from mio_core_services.firmware.sts3215 import (
-    DEFAULT_BAUDRATE,
-    DEFAULT_PORT,
-    POSITION_MAX,
-    STS3215Bus,
-)
-from mio_core_services.firmware.zero_servos import (
+from mio_core_services.firmware.runtime.jog import (
     CONFIRM_KEYS,
     HOLD_DT,
     JOG_DT,
@@ -26,6 +14,18 @@ from mio_core_services.firmware.zero_servos import (
     QUIT_KEYS,
     RIGHT_KEYS,
     RawTerminal,
+    jog_speed_for,
+)
+from mio_core_services.firmware.runtime.servo_zeros_io import (
+    degrees_from_ticks,
+    merge_record,
+    read_records,
+)
+from mio_core_services.firmware.runtime.sts3215 import (
+    DEFAULT_BAUDRATE,
+    DEFAULT_PORT,
+    POSITION_MAX,
+    STS3215Bus,
 )
 
 ARRIVE_TOLERANCE = 20

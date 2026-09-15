@@ -14,7 +14,7 @@ import csv
 import sys
 import time
 
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     ADDR_PRESENT_CURRENT,
     ADDR_PRESENT_LOAD,
     ADDR_PRESENT_SPEED,

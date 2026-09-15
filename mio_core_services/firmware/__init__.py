@@ -1,4 +1,4 @@
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     CENTER_POSITION,
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,

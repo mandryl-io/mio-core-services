@@ -4,106 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import select
 import sys
-import termios
 import time
-import tty
-from dataclasses import dataclass
-from typing import Self
 
-from mio_core_services.firmware import jog
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime import jog
+from mio_core_services.firmware.runtime.jog import (
+    CONFIRM_KEYS,
+    HOLD_DT,
+    JOG_DT,
+    LEFT_KEYS,
+    QUIT_KEYS,
+    RIGHT_KEYS,
+    RawTerminal,
+)
+from mio_core_services.firmware.runtime.sts3215 import (
     DEFAULT_BAUDRATE,
     DEFAULT_PORT,
     POSITION_MAX,
     STS3215Bus,
 )
-
-LEFT_KEYS = frozenset({"\x1b[D", "\x1bOD", "a", "h"})
-RIGHT_KEYS = frozenset({"\x1b[C", "\x1bOC", "d", "l"})
-CONFIRM_KEYS = frozenset({"\r", "\n"})
-QUIT_KEYS = frozenset({"q", "\x03"})
-JOG_DT = jog.JOG_DT
-HOLD_DT = jog.HOLD_DT
-
-
-@dataclass(frozen=True)
-class ServoRange:
-    zero: int
-    min: int = 0
-    max: int = POSITION_MAX
-
-
-def _parse_position(value: object, label: str) -> int:
-    try:
-        position = int(value)
-    except (TypeError, ValueError) as exc:
-        raise SystemExit(f"{label}: invalid position {value!r}") from exc
-    if not 0 <= position <= POSITION_MAX:
-        raise SystemExit(f"{label}: position must be 0–{POSITION_MAX}, got {position}")
-    return position
-
-
-def load_zeros(path: str) -> dict[int, ServoRange]:
-    try:
-        with open(path) as handle:
-            raw = json.load(handle)
-    except OSError as exc:
-        raise SystemExit(f"Could not read {path}: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
-    if not isinstance(raw, dict) or not raw:
-        raise SystemExit(f"{path} must be a non-empty JSON object of id -> zero/limits")
-    zeros: dict[int, ServoRange] = {}
-    for key, value in raw.items():
-        try:
-            servo_id = int(key)
-        except (TypeError, ValueError) as exc:
-            raise SystemExit(f"{path}: invalid servo id {key!r}") from exc
-        if isinstance(value, dict):
-            if "zero" not in value:
-                raise SystemExit(f"{path}: servo {servo_id} missing 'zero'")
-            zero = _parse_position(value["zero"], f"{path}: servo {servo_id} zero")
-            lo = _parse_position(value.get("min", 0), f"{path}: servo {servo_id} min")
-            hi = _parse_position(
-                value.get("max", POSITION_MAX), f"{path}: servo {servo_id} max"
-            )
-        else:
-            zero = _parse_position(value, f"{path}: servo {servo_id}")
-            lo, hi = 0, POSITION_MAX
-        if not lo <= zero <= hi:
-            raise SystemExit(
-                f"{path}: servo {servo_id} zero {zero} is outside min–max {lo}–{hi}"
-            )
-        zeros[servo_id] = ServoRange(zero=zero, min=lo, max=hi)
-    return zeros
-
-
-class RawTerminal:
-    def __enter__(self) -> Self:
-        self.old = termios.tcgetattr(sys.stdin.fileno())
-        tty.setraw(sys.stdin.fileno())
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, self.old)
-
-    def read_key(self) -> str:
-        fd = sys.stdin.fileno()
-        ch = os.read(fd, 1)
-        if ch != b"\x1b":
-            return ch.decode("latin1")
-        seq = ch
-        while len(seq) < 3 and select.select([fd], [], [], 0.05)[0]:
-            seq += os.read(fd, 1)
-        return seq.decode("latin1")
-
-    def poll_key(self, timeout: float) -> str | None:
-        if not select.select([sys.stdin.fileno()], [], [], timeout)[0]:
-            return None
-        return self.read_key()
 
 
 def _status(message: str) -> None:

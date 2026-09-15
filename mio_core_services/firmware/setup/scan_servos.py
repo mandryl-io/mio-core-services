@@ -5,7 +5,7 @@ import time
 
 import serial
 
-from mio_core_services.firmware.sts3215 import (
+from mio_core_services.firmware.runtime.sts3215 import (
     ADDR_ID,
     ADDR_PRESENT_POSITION,
     DEFAULT_BAUDRATE,
