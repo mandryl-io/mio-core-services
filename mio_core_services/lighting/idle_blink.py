@@ -1,7 +1,7 @@
 """Idle blink: both eyes stay open, then close together for a human-length blink.
 
-Timing comes from config/blink.yaml: published human means, shifted 1 SD
-toward slow, then gaussian noise from the published spreads.
+Timing comes from config/blink.yaml: a little slower than the published
+human mean, then gaussian noise from the published spreads.
 
 Each blink fades out then in over PWM, rather than slamming the pin.
 

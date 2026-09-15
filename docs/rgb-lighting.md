@@ -158,7 +158,7 @@ cd ~/mio-core-services-waveshare
 ```
 
 Both eyes stay open, then close together for about 200 ms, then open again.
-Timing lives in `config/blink.yaml`: human means, shifted 1 SD toward slow,
+Timing lives in `config/blink.yaml`: a little slower than the human mean,
 plus gaussian noise. `mio-eyes.service` starts this at power-on; see
 [deploy/README.md](../deploy/README.md).
 

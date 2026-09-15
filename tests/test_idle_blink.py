@@ -21,15 +21,14 @@ def test_default_settings_file_exists():
     assert DEFAULT_SETTINGS.is_file()
 
 
-def test_slow_open_is_one_sd_below_human_rate(settings):
-    # 10.3 - 3.1 = 7.2 blinks/min → 8.3 s between blinks.
-    assert settings.open_mean == pytest.approx(8.3, abs=0.05)
+def test_open_mean_sits_between_human_and_sleepy(settings):
+    # Human IBI ~6.4 s; 1 SD slow was 8.3 s and felt too long.
+    assert 6.4 < settings.open_mean < 8.3
     assert settings.open_spread == pytest.approx(2.4)
 
 
-def test_slow_blink_is_one_sd_above_human_duration(settings):
-    # 0.18 + 0.032 = 0.212 s. Longer eyelid, not a shorter one.
-    assert settings.blink_mean == pytest.approx(0.212, abs=0.002)
+def test_blink_duration_stays_near_the_human_median(settings):
+    assert 0.18 <= settings.blink_mean <= 0.22
     assert settings.blink_spread == pytest.approx(0.032)
 
 

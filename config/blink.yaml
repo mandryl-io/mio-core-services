@@ -6,17 +6,18 @@
 #   blink rate      10.3 ± 3.1 /min (Doughty 2002)
 #   inter-blink     6.4 ± 2.4 s
 #
-# Operating point is 1 SD toward slow, still inside those ranges:
-#   rate  10.3 - 3.1 = 7.2 /min  →  open_mean  60/7.2 ≈ 8.3 s
-#   duration  0.18 + 0.032 = 0.212 s  (the slower eyelid, not a shorter one)
+# Tuned by eye: a bit slower than the published mean, a bit quicker than
+# mean-minus-one-SD (that landed at ~8.3 s and felt sleepy).
+#   ~8.6 blinks/min  →  open_mean 7.0 s
+#   eyelid a shade over the 180 ms median
 # gaussian noise still uses the published spreads.
 
-blink_mean: 0.212
+blink_mean: 0.20
 blink_spread: 0.032
 blink_min: 0.12
 blink_max: 0.40
 
-open_mean: 8.3
+open_mean: 7.0
 open_spread: 2.4
-open_min: 4.0
-open_max: 13.0
+open_min: 3.5
+open_max: 12.0
