@@ -9,9 +9,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="$REPO/.venv/bin/python"
 cd "$REPO"
 
-echo "== 1. Stop anything already driving the bus =="
-sudo systemctl stop mio-head.service 2>/dev/null || true
+echo "== 1. Stop anything already driving the bus or the eyes =="
+sudo systemctl stop mio-head.service mio-eyes.service 2>/dev/null || true
 pkill -f "mio_core_services.firmware" 2>/dev/null || true
+pkill -f "mio_core_services.lighting" 2>/dev/null || true
 sleep 3
 
 echo
@@ -32,14 +33,14 @@ echo "== 4. Write and verify the hard travel limits =="
 "$PY" -m mio_core_services.firmware.calibration.apply_limits --verify
 
 echo
-echo "== 5. Install and enable the boot service =="
-sudo cp deploy/mio-head.service /etc/systemd/system/
+echo "== 5. Install and enable the boot services =="
+sudo cp deploy/mio-head.service deploy/mio-eyes.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable mio-head.service
+sudo systemctl enable mio-head.service mio-eyes.service
 
 echo
 echo "== 6. Rebooting =="
-echo "On boot the head centres slowly, sweeps its full range, then idles."
-echo "Watch it with:  journalctl -u mio-head.service -f"
+echo "On boot the head centres slowly, then idles; the eyes blink with it."
+echo "Watch it with:  journalctl -u mio-head.service -u mio-eyes.service -f"
 sleep 3
 sudo reboot
