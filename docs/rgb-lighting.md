@@ -158,8 +158,8 @@ cd ~/mio-core-services-waveshare
 ```
 
 Both eyes stay open, then close together for about 200 ms, then open again.
-The gap is about six seconds. Both numbers get a little gaussian noise so the
-cadence is not a metronome. `mio-eyes.service` starts this at power-on; see
+Timing lives in `config/blink.yaml`: human means, shifted 1 SD toward slow,
+plus gaussian noise. `mio-eyes.service` starts this at power-on; see
 [deploy/README.md](../deploy/README.md).
 
 The earlier demo patterns are still in `lighting.eyes`: `--mode alternate`

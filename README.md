@@ -97,8 +97,9 @@ moving while it runs.
 
 Two white eye LEDs on GPIO23 and GPIO24 (pins 16 and 18, grounds on pin 14)
 idle-blink on boot via `mio-eyes.service`: both stay open, then close together
-for a short human-length blink every few seconds. The older demo patterns
-(`--mode alternate` / `flashes`) are still in `lighting.eyes` if you want them:
+for a short human-length blink every few seconds. Timing is in
+`config/blink.yaml`. The older demo patterns (`--mode alternate` / `flashes`)
+are still in `lighting.eyes` if you want them:
 
 ```bash
 ~/ledenv/bin/python -m mio_core_services.lighting.idle_blink
