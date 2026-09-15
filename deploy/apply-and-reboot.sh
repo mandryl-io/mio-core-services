@@ -17,7 +17,11 @@ sleep 3
 
 echo
 echo "== 2. Update =="
-git pull --ff-only
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  git pull --ff-only
+else
+  echo "No upstream for $(git branch --show-current); using this tree."
+fi
 
 echo
 echo "== 3. Restore the reviewed register baseline =="
@@ -34,9 +38,12 @@ echo "== 4. Write and verify the hard travel limits =="
 
 echo
 echo "== 5. Install and enable the boot services =="
+# Recopy from the repo so a stale installed unit (e.g. the pre-runtime
+# firmware.idle_motion path) is overwritten before the reboot.
 sudo cp deploy/mio-head.service deploy/mio-eyes.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable mio-head.service mio-eyes.service
+systemctl cat mio-head.service mio-eyes.service | grep ExecStart
 
 echo
 echo "== 6. Rebooting =="
