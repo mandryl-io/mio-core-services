@@ -1,25 +1,38 @@
 # Servo Calibration
 
-Every tool here is a module under `mio_core_services.firmware`, run the same way:
+Tools live under `mio_core_services/firmware/`, grouped by job:
+
+| Folder | When you use it |
+| --- | --- |
+| `setup/` | First contact with the bus: scan, read, IDs, a one-shot move |
+| `calibration/` | Record zeros and limits, then write them into EEPROM |
+| `runtime/` | Boot motion and shared protocol/helpers — not usually run by hand |
+| `tuning/` | Jitter still unresolved: measure, inspect, and set the position loop |
+
+Run a tool the same way, with the folder in the module path:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.<tool> [options]
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint --id 2 --keys up-down
 ```
 
 Defaults target the working link — `/dev/ttyAMA0` at 115200 — so `--port` and
 `--baudrate` are only needed on other hardware. See
 [waveshare-servo-hat.md](waveshare-servo-hat.md) for the link itself.
 
-Over SSH, tools that read the arrow keys need a real terminal:
+Over SSH, tools that read the arrow keys need a real terminal (`TTY` below).
+That is a keyboard TTY, not USB serial:
 
 ```bash
 ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
-  ~/.local/bin/uv run --frozen python -m mio_core_services.firmware.<tool>'
+  ~/.local/bin/uv run --frozen python -m mio_core_services.firmware.calibration.check_limits'
 ```
 
 `uv` is not on `PATH` in a non-interactive shell, hence the absolute path.
 
 ## The tools
+
+### Setup
 
 | Tool | TTY | What it does |
 | --- | --- | --- |
@@ -27,19 +40,41 @@ ssh -t mio@raspberrypi.local 'cd ~/mio-core-services-waveshare && \
 | `read_servo` | no | Reads one servo's position, `--diagnose` adds link facts |
 | `encode_servo_id` | no | Writes a new ID to EEPROM |
 | `move_servo` | no | Moves one servo to an absolute position |
-| `set_zero` | no | Records the current position as that servo's zero |
+| `move_system` | no | Moves both axes once, to confirm the bus is alive |
+
+### Calibration
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
 | `calibrate_joint` | **yes** | Guided pass: hold other axes, centre, fit part, set zero and limits |
-| `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
 | `check_limits` | **yes** | Rehearses saved limits; any key stops immediately |
-| `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
-| `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
-| `jitter_test` | no | Measures how much a held position actually moves |
 | `apply_limits` | no | Writes the calibrated limits into the servos' own EEPROM |
-| `idle_motion` | no | Natural head movement inside the calibrated range |
+| `set_zero` | no | Records the current position as that servo's zero |
+| `calibrate_range` | **yes** | Jog to each limit in turn, then sweep to verify |
 | `zero_servos` | **yes** | Original combined zero + limits pass, rewrites the file |
 | `sweep_servos` | no | Sweeps every servo in a zeros file through its range |
 | `teleop_servo` | **yes** | Live arrow-key control of one servo |
 | `system_teleop` | **yes** | Live control of both axes, clamped to the saved limits |
+
+### Runtime
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `idle_motion` | no | Natural head movement inside the calibrated range; started by `mio-head.service` |
+| `sts3215` | — | Protocol and bus helper, imported by the other tools |
+| `servo_zeros_io` | — | Read/merge `servo_zeros.json` |
+| `jog` | — | Shared jogging timing, keys, and velocity steering |
+
+### Tuning
+
+Jitter while travelling is not fully resolved. These write and measure the
+servo's onboard position loop; they are not a software PID on the Pi.
+
+| Tool | TTY | What it does |
+| --- | --- | --- |
+| `tune_servo` | no | Reads or sets the position-loop registers that cause jitter |
+| `jitter_test` | no | Measures how much a held position actually moves |
+| `monitor_servo` | no | Samples voltage, load and temperature to catch supply sag |
 
 `set_zero`, `calibrate_joint`, `calibrate_range`, and `check_limits` **merge** into
 `servo_zeros.json`; `zero_servos` rewrites it wholesale, so it will drop servos
@@ -53,7 +88,7 @@ steady so the joint is calibrated in the pose it will actually rest in.
 Head pitch, with the neck held at its zero and the up/down arrows driving it:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.calibrate_joint \
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint \
   --id 2 --keys up-down
 ```
 
@@ -82,7 +117,7 @@ than the goal actually advances, it sprints to each one, stops, and waits —
 
 Every jogging tool therefore derives its tracking speed from the jog rate,
 `step / 0.02` plus a little headroom, rather than using a fixed value. The
-shared helper is `firmware/jog.py`; `zero_servos`, `teleop_servo` and
+shared helper is `firmware/runtime/jog.py`; `zero_servos`, `teleop_servo` and
 `system_teleop` previously paired step 5 with a fixed speed of 2400, roughly
 ten times the rate the goal actually moved. Changing `--step` changes it
 to match, so smaller steps stay smooth:
@@ -109,7 +144,7 @@ limits are measured from that zero.
 ### 1. Confirm the servo is on the bus
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.scan_servos
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
 ```
 
 Never assume an ID. A silent read on `--id 1` usually means the servo is on a
@@ -121,7 +156,7 @@ Fit the horn with the servo at its electrical centre (2048) so travel is
 symmetric. Move it there, leaving torque on so it cannot drift while you work:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.move_servo --id 1 --position 2048
+uv run --frozen python -m mio_core_services.firmware.setup.move_servo --id 1 --position 2048
 ```
 
 ### 3. Record the zero
@@ -129,7 +164,7 @@ uv run --frozen python -m mio_core_services.firmware.move_servo --id 1 --positio
 With the part fitted and the joint at its true rest position, store it:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.set_zero --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.set_zero --id 1
 ```
 
 This is the mechanism's zero, not the servo's. It will not usually be 2048 —
@@ -141,7 +176,7 @@ afterwards.
 ### 4. Set the travel limits
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.calibrate_range --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_range --id 1
 ```
 
 Centres, asks you to jog to one limit and press Enter, returns to centre, asks
@@ -156,7 +191,7 @@ Useful flags: `--step 2` for finer jogging, `--speed 150` for a slower sweep.
 ### 5. Rehearse the limits
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.check_limits --speed 120 --cycles 1
+uv run --frozen python -m mio_core_services.firmware.calibration.check_limits --speed 120 --cycles 1
 ```
 
 **Any key stops every servo where it stands**, checked continuously during
@@ -175,7 +210,7 @@ Pass `--keep-torque` when you need it to hold — fitting a part to a centred
 shaft, or a joint that cannot support its own weight:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.calibrate_joint \
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_joint \
   --id 2 --keys up-down --keep-torque
 ```
 
@@ -183,7 +218,7 @@ To release manually at any time:
 
 ```bash
 uv run --frozen python -c "
-from mio_core_services.firmware.sts3215 import STS3215Bus
+from mio_core_services.firmware.runtime.sts3215 import STS3215Bus
 with STS3215Bus(release_ids=[1, 2]):
     pass"
 ```
@@ -191,7 +226,7 @@ with STS3215Bus(release_ids=[1, 2]):
 ## Driving both axes
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.system_teleop
+uv run --frozen python -m mio_core_services.firmware.calibration.system_teleop
 ```
 
 Left/right (or `a`/`d`) drives yaw, up/down (or `w`/`s`) drives pitch, and both
@@ -222,8 +257,8 @@ servo will also enforce limits itself, from EEPROM addresses 9 and 11, and that
 still holds if a process crashes mid-move or sends a bad goal:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.apply_limits
-uv run --frozen python -m mio_core_services.firmware.apply_limits --verify
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits --verify
 ```
 
 The first writes each servo's calibrated `min`/`max` and reads them back to
@@ -235,8 +270,8 @@ Anything that drives the servos autonomously should verify before moving.
 ## Idle motion
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.apply_limits
-uv run --frozen python -m mio_core_services.firmware.idle_motion
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits
+uv run --frozen python -m mio_core_services.firmware.runtime.idle_motion
 ```
 
 Runs continuously, picking from six behaviours rather than sweeping:
@@ -279,7 +314,7 @@ Ranked by what actually causes it:
    jitter rather than a power fault. Measure it before tuning anything:
 
    ```bash
-   uv run --frozen python -m mio_core_services.firmware.monitor_servo --id 1
+   uv run --frozen python -m mio_core_services.firmware.tuning.monitor_servo --id 1
    ```
 
    Jog the joint while it samples. More than about 1 V of sag points at the
@@ -299,7 +334,7 @@ Ranked by what actually causes it:
 Before tuning anything, get a number:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.jitter_test --id 1
+uv run --frozen python -m mio_core_services.firmware.tuning.jitter_test --id 1
 ```
 
 It holds the servo's zero and samples the position for six seconds with torque
@@ -327,21 +362,21 @@ finer than it can usefully resolve. Two settings control this, both EEPROM:
 Inspect the current values:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1
+uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1
 ```
 
 Restore the reviewed baseline — P 32, I 0, D 32, punch 16, dead zone 1:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --baseline
+uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1 --baseline
 ```
 
 Then tune damping upward from there, measuring at each step:
 
 ```bash
 for d in 32 40 48 64; do
-  uv run --frozen python -m mio_core_services.firmware.tune_servo --id 1 --d $d
-  uv run --frozen python -m mio_core_services.firmware.jitter_test --id 1
+  uv run --frozen python -m mio_core_services.firmware.tuning.tune_servo --id 1 --d $d
+  uv run --frozen python -m mio_core_services.firmware.tuning.jitter_test --id 1
 done
 ```
 

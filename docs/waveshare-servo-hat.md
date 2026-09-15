@@ -19,7 +19,7 @@ setup a factory-fresh HAT needs, and a log of the faults we hit getting there.
 Reading a position with this configuration:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.read_servo \
+uv run --frozen python -m mio_core_services.firmware.setup.read_servo \
   --port /dev/ttyAMA0 --baudrate 115200 --id 1 --diagnose
 ```
 
@@ -33,7 +33,7 @@ uv run --frozen python -m mio_core_services.firmware.read_servo \
 Do not assume a servo is factory-fresh at ID 1. Scan the bus first:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.scan_servos
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
 ```
 
 Two servos both answering as ID 1 cannot share a bus — they reply to every
@@ -108,7 +108,7 @@ Look for `Hash of data verified.` on each image. Then refit the HAT, reconnect
 the servo power, and verify:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.read_servo \
+uv run --frozen python -m mio_core_services.firmware.setup.read_servo \
   --port /dev/ttyAMA0 --baudrate 115200 --id 1 --diagnose
 ```
 
@@ -193,7 +193,7 @@ cd examples/SMS_STS/Ping && cmake . && make
 sudo ./Ping /dev/ttyAMA0     # prints "ID:1" when the link works
 ```
 
-Our framing in `mio_core_services/firmware/sts3215.py` matches that reference
+Our framing in `mio_core_services/firmware/runtime/sts3215.py` matches that reference
 exactly — same `0xff 0xff ID LEN FUN ...` header, same `~(sum)` checksum, same
 little-endian word order, same 115200 default in the SMS/STS examples.
 
@@ -223,7 +223,7 @@ Release torque first, and pull the connector straight out:
 
 ```bash
 uv run --frozen python -c "
-from mio_core_services.firmware.sts3215 import STS3215Bus
+from mio_core_services.firmware.runtime.sts3215 import STS3215Bus
 with STS3215Bus() as b: b.enable_torque(1, False)"
 ```
 

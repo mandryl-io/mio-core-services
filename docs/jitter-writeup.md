@@ -208,7 +208,7 @@ held at 12.2 V with no latched faults, but still only at idle.
 A measurement tool exists but its output has not yet been captured:
 
 ```bash
-python -m mio_core_services.firmware.jitter_test --id 1
+python -m mio_core_services.firmware.tuning.jitter_test --id 1
 ```
 
 It holds a position and samples it for 6 s with torque on, then 6 s with torque
@@ -240,12 +240,12 @@ off, reporting peak-to-peak and RMS in ticks.
 ```bash
 git clone <repo> && cd mio-core-services
 uv sync
-uv run python -m mio_core_services.firmware.scan_servos
-uv run python -m mio_core_services.firmware.jitter_test --id 1
-uv run python -m mio_core_services.firmware.system_teleop   # arrow keys
-uv run python -m mio_core_services.firmware.idle_motion
+uv run python -m mio_core_services.firmware.setup.scan_servos
+uv run python -m mio_core_services.firmware.tuning.jitter_test --id 1
+uv run python -m mio_core_services.firmware.calibration.system_teleop   # arrow keys
+uv run python -m mio_core_services.firmware.runtime.idle_motion
 ```
 
-Relevant source: `mio_core_services/firmware/sts3215.py` (protocol),
-`jog.py` (velocity jogging), `idle_motion.py` (autonomous behaviour),
-`tune_servo.py` (PID and dead-zone registers).
+Relevant source: `mio_core_services/firmware/runtime/sts3215.py` (protocol),
+`runtime/jog.py` (velocity jogging), `runtime/idle_motion.py` (autonomous
+behaviour), `tuning/tune_servo.py` (PID and dead-zone registers).

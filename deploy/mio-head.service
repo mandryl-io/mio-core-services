@@ -12,7 +12,7 @@ User=mio
 WorkingDirectory=/home/mio/mio-core-services-waveshare
 # The venv interpreter directly, not uv: no dependency resolution, no network,
 # nothing to fail before the head moves.
-ExecStart=/home/mio/mio-core-services-waveshare/.venv/bin/python -m mio_core_services.firmware.idle_motion
+ExecStart=/home/mio/mio-core-services-waveshare/.venv/bin/python -m mio_core_services.firmware.runtime.idle_motion
 # idle_motion centres and releases torque on SIGTERM; give it time to finish.
 KillSignal=SIGTERM
 TimeoutStopSec=15

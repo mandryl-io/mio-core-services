@@ -38,7 +38,8 @@ Two STS3215 bus servos on a Waveshare `Bus Servo Driver HAT (A)`:
 | 2 | Pitch | Head |
 
 - **[docs/servo-calibration.md](docs/servo-calibration.md)** — the calibration
-  workflow and every firmware tool.
+  workflow and firmware tools, grouped as setup, calibration, runtime, and
+  tuning.
 - **[docs/waveshare-servo-hat.md](docs/waveshare-servo-hat.md)** — HAT setup,
   ESP32 firmware flashing, and link troubleshooting.
 
@@ -50,16 +51,16 @@ at the debug header there. Both are one-time steps, covered in the HAT doc.
 Check the bus first:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.scan_servos
+uv run --frozen python -m mio_core_services.firmware.setup.scan_servos
 ```
 
 Then calibrate a joint — record its zero with the part fitted, set the travel
 limits, and rehearse them:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.set_zero --id 1
-uv run --frozen python -m mio_core_services.firmware.calibrate_range --id 1
-uv run --frozen python -m mio_core_services.firmware.check_limits --cycles 1
+uv run --frozen python -m mio_core_services.firmware.calibration.set_zero --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.calibrate_range --id 1
+uv run --frozen python -m mio_core_services.firmware.calibration.check_limits --cycles 1
 ```
 
 Results land in `servo_zeros.json`. The last two read the arrow keys, so over

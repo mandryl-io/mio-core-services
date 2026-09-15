@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from mio_core_services.firmware.read_servo import _failure_message, _port_preflight
+from mio_core_services.firmware.setup.read_servo import _failure_message, _port_preflight
 
 
 def test_preflight_rejects_missing_port(tmp_path: Path):

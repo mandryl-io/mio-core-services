@@ -1,8 +1,8 @@
 # Running the head on boot
 
-`mio-head.service` starts `idle_motion` at power-on: slow centring, a full
-range-of-motion sweep, then continuous idle behaviour. It needs no network, no
-SSH session and nobody logged in.
+`mio-head.service` starts `firmware.runtime.idle_motion` at power-on: slow
+centring, a full range-of-motion sweep, then continuous idle behaviour. It needs
+no network, no SSH session and nobody logged in.
 
 ## One-shot install
 
@@ -45,7 +45,7 @@ move unless each servo's EEPROM limits match it, so calibrate and write the
 limits first:
 
 ```bash
-uv run --frozen python -m mio_core_services.firmware.apply_limits --verify
+uv run --frozen python -m mio_core_services.firmware.calibration.apply_limits --verify
 ```
 
 ## Running tools by hand

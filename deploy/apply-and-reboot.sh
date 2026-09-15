@@ -23,13 +23,13 @@ echo "== 3. Restore the reviewed register baseline =="
 # P32 / I0 / D32, punch 16, dead zone 1. The earlier lowered punch and widened
 # dead zone sat inside the gear train's lost motion and made hunting worse.
 for id in 1 2; do
-  "$PY" -m mio_core_services.firmware.tune_servo --id "$id" --baseline
+  "$PY" -m mio_core_services.firmware.tuning.tune_servo --id "$id" --baseline
 done
 
 echo
 echo "== 4. Write and verify the hard travel limits =="
-"$PY" -m mio_core_services.firmware.apply_limits
-"$PY" -m mio_core_services.firmware.apply_limits --verify
+"$PY" -m mio_core_services.firmware.calibration.apply_limits
+"$PY" -m mio_core_services.firmware.calibration.apply_limits --verify
 
 echo
 echo "== 5. Install and enable the boot service =="
