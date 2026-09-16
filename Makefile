@@ -10,7 +10,8 @@ run-conversation-service:
 	ALSA_CONFIG_DIR=$(ALSA_CONFIG_DIR) ALSA_CONFIG_PATH=$(ALSA_CONFIG_PATH) \
 	PA_ALSA_PLUGHW=$(PA_ALSA_PLUGHW) \
 	lk agent console --input-device "$(MIO_AUDIO_INPUT)" \
-		--output-device "$(MIO_AUDIO_OUTPUT)" mio_core_services/conversation.py
+		--output-device "$(MIO_AUDIO_OUTPUT)" mio_core_services/conversation.py \
+		-- --system-prompt prompts/default.md
 
 download-files:
 	uv run python -m livekit.agents download-files

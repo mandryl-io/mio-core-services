@@ -1,4 +1,6 @@
+import argparse
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -19,7 +21,6 @@ from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_STT_MODEL,
-    DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TTS_INSTRUCTIONS,
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
@@ -36,6 +37,20 @@ REQUIRED_ENV_VARS = (
 )
 
 
+def system_prompt_path() -> Path:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--system-prompt", default="prompts/default.md")
+    args, _ = parser.parse_known_args()
+    return Path(args.system_prompt)
+
+
+def load_system_prompt(path: Path) -> str:
+    prompt = path.read_text(encoding="utf-8").strip()
+    if not prompt:
+        raise ValueError(f"System prompt is empty: {path}")
+    return prompt
+
+
 def require_env() -> None:
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
@@ -45,8 +60,8 @@ def require_env() -> None:
 
 
 class Assistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=DEFAULT_SYSTEM_PROMPT)
+    def __init__(self, prompt_path: Path) -> None:
+        super().__init__(instructions=load_system_prompt(prompt_path))
 
 
 def create_session() -> AgentSession:
@@ -73,7 +88,7 @@ async def mio_conversation(ctx: agents.JobContext):
     session = create_session()
     await session.start(
         room=ctx.room,
-        agent=Assistant(),
+        agent=Assistant(system_prompt_path()),
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=ai_coustics.audio_enhancement(

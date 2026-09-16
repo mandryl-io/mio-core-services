@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -12,13 +13,28 @@ from mio_core_services.constants import (
 from mio_core_services.conversation import (
     REQUIRED_ENV_VARS,
     create_session,
+    load_system_prompt,
     require_env,
+    system_prompt_path,
 )
 
 
 def _clear_required_env(monkeypatch) -> None:
     for name in REQUIRED_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+
+
+def test_system_prompt_argument(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv", ["conversation.py", "--system-prompt", "prompts/custom.md"]
+    )
+    assert system_prompt_path() == Path("prompts/custom.md")
+
+
+def test_load_system_prompt(tmp_path):
+    prompt_path = tmp_path / "prompt.md"
+    prompt_path.write_text("# Mio\n\nBe kind.\n", encoding="utf-8")
+    assert load_system_prompt(prompt_path) == "# Mio\n\nBe kind."
 
 
 def test_require_env_missing_keys_raise(monkeypatch):
