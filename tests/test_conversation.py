@@ -9,19 +9,15 @@ from mio_core_services.constants import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
 )
-from mio_core_services.conversation import create_session, require_env
-
-REQUIRED = (
-    "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
-    "LIVEKIT_URL",
-    "LIVEKIT_API_KEY",
-    "LIVEKIT_API_SECRET",
+from mio_core_services.conversation import (
+    REQUIRED_ENV_VARS,
+    create_session,
+    require_env,
 )
 
 
 def _clear_required_env(monkeypatch) -> None:
-    for name in REQUIRED:
+    for name in REQUIRED_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -31,10 +27,10 @@ def test_require_env_missing_keys_raise(monkeypatch):
         require_env()
 
 
-@pytest.mark.parametrize("missing", REQUIRED)
+@pytest.mark.parametrize("missing", REQUIRED_ENV_VARS)
 def test_require_env_each_missing_key_raises(monkeypatch, missing):
     _clear_required_env(monkeypatch)
-    for name in REQUIRED:
+    for name in REQUIRED_ENV_VARS:
         if name != missing:
             monkeypatch.setenv(name, "present")
     with pytest.raises(ValueError, match=missing):
@@ -42,7 +38,7 @@ def test_require_env_each_missing_key_raises(monkeypatch, missing):
 
 
 def test_require_env_all_present_does_not_raise(monkeypatch):
-    for name in REQUIRED:
+    for name in REQUIRED_ENV_VARS:
         monkeypatch.setenv(name, "present")
     require_env()
 

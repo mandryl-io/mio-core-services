@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-os.environ.setdefault("PA_ALSA_PLUGHW", "1")
 
 from livekit import agents
 from livekit.agents import (
@@ -26,6 +25,8 @@ from mio_core_services.constants import (
     DEFAULT_TTS_VOICE,
 )
 
+# NOTE(@dillondesilva): Move this validation to a shared module when another
+# service needs the same startup safety check.
 REQUIRED_ENV_VARS = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
