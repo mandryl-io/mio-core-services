@@ -17,5 +17,9 @@ DEFAULT_TTS_INSTRUCTIONS = (
     "Use an unhurried conversational pace."
 )
 DEFAULT_BOT_NAME = "Mio"
-DEFAULT_INITIAL_MESSAGE = f"Hi, I'm {DEFAULT_BOT_NAME}. How are you today?"
+DEFAULT_INITIAL_MESSAGE = (
+    f"Hi, I'm {DEFAULT_BOT_NAME}. It's good to sit down with you. "
+    "If something's already on your mind we can start there — "
+    "otherwise I'll get us going."
+)
 
