@@ -1,21 +1,16 @@
-.PHONY: run-conversation-service eval
+.PHONY: run-conversation-service eval download-files
 
 PIPECAT_HOST ?= localhost
-PIPECAT_PORT ?= 8860
-PIPECAT_BASE_URL ?= http://$(PIPECAT_HOST):$(PIPECAT_PORT)
-CLIENT_PORT ?= 5173
 
 EVAL_PORT ?= 7860
 EVAL_BOT_URL ?= ws://$(PIPECAT_HOST):$(EVAL_PORT)
 EVAL_SCENARIOS ?= tests/scenarios/*.yaml
 
 run-conversation-service:
-	PIPECAT_HEADLESS=1 uv run main.py --port $(PIPECAT_PORT) & \
-	pid=$$!; \
-	trap 'kill $$pid 2>/dev/null; wait $$pid 2>/dev/null' EXIT INT TERM; \
-	until curl -sf $(PIPECAT_BASE_URL)/status >/dev/null; do sleep 0.5; done; \
-	cd client && npm install && \
-	PIPECAT_BASE_URL=$(PIPECAT_BASE_URL) CLIENT_PORT=$(CLIENT_PORT) npm start
+	uv run python -m mio_core_services.conversation console
+
+download-files:
+	uv run python -m mio_core_services.conversation download-files
 
 eval:
 	uv run main.py -t eval --port $(EVAL_PORT) & \

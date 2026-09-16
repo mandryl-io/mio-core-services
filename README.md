@@ -2,7 +2,37 @@
 
 Ensure you have `uv`, run `uv sync` to install the dependencies.
 
-Then, run `uv run main.py` to start the pipeline example.
+# Conversation (LiveKit)
+
+The spoken conversation service is a thin LiveKit STT→LLM→TTS agent. Put these
+in `.env`:
+
+- `OPENAI_API_KEY`
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+
+Download local inference files once:
+
+```
+uv run python -m mio_core_services.conversation download-files
+```
+
+`console` talks through the local microphone without joining a LiveKit room.
+`dev` connects to LiveKit with hot reload. `start` is the production worker:
+
+```
+make run-conversation-service
+# or
+uv run python -m mio_core_services.conversation console
+uv run python -m mio_core_services.conversation dev
+```
+
+On the Pi, `mio-conversation.service` starts the console path at boot. Stop
+that unit before a manual console session so two processes do not share the
+mic. See [deploy/README.md](deploy/README.md).
+
+Pipecat `main.py` remains for evals until tools are ported.
 
 # Tests
 

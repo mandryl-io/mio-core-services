@@ -1,0 +1,24 @@
+[Unit]
+Description=Mio conversation
+# LiveKit console talks to OpenAI and LiveKit over the network, so wait for
+# connectivity rather than for GPIO or the servo UART.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mio
+WorkingDirectory=/home/mio/mio-core-services-waveshare
+EnvironmentFile=/home/mio/mio-core-services-waveshare/.env
+# The venv interpreter directly, not uv: no dependency resolution, no network
+# stall before the agent starts.
+ExecStart=/home/mio/mio-core-services-waveshare/.venv/bin/python -m mio_core_services.conversation console
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
