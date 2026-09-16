@@ -1,7 +1,7 @@
 [Unit]
 Description=Mio conversation
-# LiveKit console talks to OpenAI and LiveKit over the network, so wait for
-# connectivity rather than for GPIO or the servo UART.
+# The local console uses OpenAI and LiveKit's existing hosted turn detector,
+# so wait for connectivity rather than for GPIO or the servo UART.
 After=network-online.target
 Wants=network-online.target
 
@@ -10,9 +10,14 @@ Type=simple
 User=mio
 WorkingDirectory=/home/mio/mio-core-services-waveshare
 EnvironmentFile=/home/mio/mio-core-services-waveshare/.env
-# The venv interpreter directly, not uv: no dependency resolution, no network
-# stall before the agent starts.
-ExecStart=/home/mio/mio-core-services-waveshare/.venv/bin/python -m mio_core_services.conversation console
+Environment=ALSA_CONFIG_DIR=/usr/share/alsa
+Environment=ALSA_CONFIG_PATH=/usr/share/alsa/alsa.conf
+# The current LiveKit CLI drives local console audio without the deprecated
+# Python run_app wrapper.
+ExecStart=/usr/bin/env lk agent console --input-device 1 --output-device 0 mio_core_services/conversation.py
+StandardInput=tty
+TTYPath=/dev/tty8
+TTYReset=yes
 KillSignal=SIGTERM
 TimeoutStopSec=15
 Restart=always

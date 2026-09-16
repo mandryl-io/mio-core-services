@@ -9,8 +9,13 @@ DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
 DEFAULT_STT_MODEL = "gpt-4o-transcribe"
-DEFAULT_CONVERSATION_LLM_MODEL = "gpt-4.1"
-DEFAULT_TTS_VOICE = "alloy"
+DEFAULT_CONVERSATION_LLM_MODEL = "claude-opus-5"
+DEFAULT_TTS_MODEL = "gpt-4o-mini-tts"
+DEFAULT_TTS_VOICE = "marin"
+DEFAULT_TTS_INSTRUCTIONS = (
+    "Speak warmly, gently, and naturally, like a patient friend. "
+    "Use an unhurried conversational pace."
+)
 DEFAULT_BOT_NAME = "Mio"
 DEFAULT_INITIAL_MESSAGE = f"Hi, I'm {DEFAULT_BOT_NAME}. How are you today?"
 DEFAULT_SYSTEM_PROMPT = """

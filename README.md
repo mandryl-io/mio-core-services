@@ -1,12 +1,19 @@
 # To Run
 
 Ensure you have `uv`, run `uv sync` to install the dependencies.
+Install the LiveKit CLI once on Linux:
+
+```
+sudo apt-get install -y jq
+curl -sSL https://get.livekit.io/cli | bash
+```
 
 # Conversation (LiveKit)
 
 The spoken conversation service is a thin LiveKit STT→LLM→TTS agent. Put these
 in `.env`:
 
+- `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
@@ -15,22 +22,24 @@ in `.env`:
 Download local inference files once:
 
 ```
-uv run python -m mio_core_services.conversation download-files
+uv run python -m livekit.agents download-files
 ```
 
-`console` talks through the local microphone without joining a LiveKit room.
-`dev` connects to LiveKit with hot reload. `start` is the production worker:
+`console` runs the experimental pipeline against the local microphone and
+speaker without joining a LiveKit room:
 
 ```
 make run-conversation-service
 # or
-uv run python -m mio_core_services.conversation console
-uv run python -m mio_core_services.conversation dev
+lk agent console mio_core_services/conversation.py
 ```
 
-On the Pi, `mio-conversation.service` starts the console path at boot. Stop
-that unit before a manual console session so two processes do not share the
-mic. See [deploy/README.md](deploy/README.md).
+The pipeline remains unchanged from the experiment: its
+`inference.TurnDetector` still uses LiveKit's hosted inference gateway.
+
+On the Pi, `mio-conversation.service` starts the same console path at boot.
+Stop it before running console manually so two processes do not share the
+audio devices. See [deploy/README.md](deploy/README.md).
 
 # Tests
 

@@ -9,6 +9,13 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="$REPO/.venv/bin/python"
 cd "$REPO"
 
+if ! command -v lk >/dev/null 2>&1; then
+  echo "LiveKit CLI is required. Install it with:"
+  echo "  sudo apt-get install -y jq"
+  echo "  curl -sSL https://get.livekit.io/cli | bash"
+  exit 1
+fi
+
 echo "== 1. Stop anything already driving the bus, the eyes, or the conversation mic =="
 sudo systemctl stop mio-head.service mio-eyes.service mio-conversation.service 2>/dev/null || true
 pkill -f "mio_core_services.firmware" 2>/dev/null || true
@@ -28,7 +35,7 @@ if ! command -v "$UV_BIN" >/dev/null 2>&1; then
   UV_BIN="$HOME/.local/bin/uv"
 fi
 "$UV_BIN" sync
-if ! "$PY" -m mio_core_services.conversation download-files; then
+if ! "$PY" -m livekit.agents download-files; then
   echo "download-files did not succeed; continuing so boot units still install."
 fi
 

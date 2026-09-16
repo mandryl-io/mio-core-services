@@ -14,17 +14,20 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, openai
+from livekit.plugins import ai_coustics, anthropic, openai
 
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_STT_MODEL,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TTS_INSTRUCTIONS,
+    DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
 )
 
 REQUIRED_ENV_VARS = (
+    "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "LIVEKIT_URL",
     "LIVEKIT_API_KEY",
@@ -48,8 +51,12 @@ class Assistant(Agent):
 def create_session() -> AgentSession:
     return AgentSession(
         stt=openai.STT(model=DEFAULT_STT_MODEL, language="en"),
-        llm=openai.LLM(model=DEFAULT_CONVERSATION_LLM_MODEL),
-        tts=openai.TTS(model="tts-1", voice=DEFAULT_TTS_VOICE),
+        llm=anthropic.LLM(model=DEFAULT_CONVERSATION_LLM_MODEL),
+        tts=openai.TTS(
+            model=DEFAULT_TTS_MODEL,
+            voice=DEFAULT_TTS_VOICE,
+            instructions=DEFAULT_TTS_INSTRUCTIONS,
+        ),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
         ),
@@ -61,6 +68,7 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="mio-conversation")
 async def mio_conversation(ctx: agents.JobContext):
+    require_env()
     session = create_session()
     await session.start(
         room=ctx.room,
@@ -73,15 +81,4 @@ async def mio_conversation(ctx: agents.JobContext):
             ),
         ),
     )
-    await session.generate_reply(instructions=DEFAULT_INITIAL_MESSAGE)
-
-
-def main() -> None:
-    load_dotenv()
-    os.environ.setdefault("PA_ALSA_PLUGHW", "1")
-    require_env()
-    agents.cli.run_app(server)
-
-
-if __name__ == "__main__":
-    main()
+    await session.say(DEFAULT_INITIAL_MESSAGE)

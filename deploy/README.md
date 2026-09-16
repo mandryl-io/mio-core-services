@@ -7,15 +7,26 @@ centring, a full range-of-motion sweep, then continuous idle behaviour.
 open, then close together for a human-length blink every few seconds. The two
 units share no hardware — servos on the UART, eyes on GPIO23/24.
 
-`mio-conversation.service` starts the LiveKit STT→LLM→TTS agent in console
-mode. It needs the network and a `.env` with `LIVEKIT_URL`, `LIVEKIT_API_KEY`,
-`LIVEKIT_API_SECRET`, and `OPENAI_API_KEY`. The unit is still installed if
-`.env` is missing; it will fail until those keys are present.
+`mio-conversation.service` starts the LiveKit STT→LLM→TTS agent in local
+console mode, using the Pi microphone and speaker. A dedicated virtual terminal
+keeps LiveKit's console runner usable without a login session. It needs the
+network and a `.env` with `LIVEKIT_URL`, `LIVEKIT_API_KEY`,
+`LIVEKIT_API_SECRET`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`. The unit is
+still installed if `.env` is missing; it will fail until those keys are present.
 
 Head and eyes need no network, no SSH session and nobody logged in.
 Conversation waits for `network-online.target`.
 
 ## One-shot install
+
+Install the LiveKit CLI once:
+
+```bash
+sudo apt-get install -y jq
+curl -sSL https://get.livekit.io/cli | bash
+```
+
+Then apply the deployment:
 
 ```bash
 bash deploy/apply-and-reboot.sh
@@ -65,7 +76,7 @@ does not accept `export` syntax). Download local inference files once after
 `uv sync`:
 
 ```bash
-uv run python -m mio_core_services.conversation download-files
+uv run python -m livekit.agents download-files
 ```
 
 ## Running tools by hand
@@ -84,7 +95,7 @@ sudo systemctl stop mio-eyes
 sudo systemctl start mio-eyes
 
 sudo systemctl stop mio-conversation
-# ... manual `python -m mio_core_services.conversation console` ...
+# ... manual `lk agent console mio_core_services/conversation.py` ...
 sudo systemctl start mio-conversation
 ```
 

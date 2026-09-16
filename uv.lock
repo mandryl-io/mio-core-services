@@ -136,6 +136,25 @@ wheels = [
 ]
 
 [[package]]
+name = "anthropic"
+version = "0.125.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "docstring-parser" },
+    { name = "httpx" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/62/f8/6f0560884b5363848347bd640b6c1d04abc25e7aa61787a232f790c6b60a/anthropic-0.125.0.tar.gz", hash = "sha256:e0cdd336580cb7411c1cdab69f80973e9bf4bff7f8e08141811d46307d45c682", size = 1112593, upload-time = "2026-08-19T22:00:42.837Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/1a/b1bd30cda3790557e8791bec5922a6ec8fabb6fa8b008c76a39cf7be6152/anthropic-0.125.0-py3-none-any.whl", hash = "sha256:3486013602eca76d8b12540764e53654f02cf4951110bca86cf06e67428a9f21", size = 1184067, upload-time = "2026-08-19T22:00:44.596Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1159,6 +1178,20 @@ wheels = [
 ]
 
 [[package]]
+name = "livekit-plugins-anthropic"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anthropic" },
+    { name = "httpx" },
+    { name = "livekit-agents" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/e8/ca6e7e18075df5a97f641fe818cd91bb27564eb319ead4a1cd524e2bfcb6/livekit_plugins_anthropic-1.8.2.tar.gz", hash = "sha256:9a338924a8ee924ff00e434c658954882dc64b4e8d638a1b82c1d2a604da3504", size = 9422, upload-time = "2026-09-15T18:13:57.842Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/66/1bc6d823cb9c4a8bf46d798400cef8905a2045f6019fd2ed76568c72eb0d/livekit_plugins_anthropic-1.8.2-py3-none-any.whl", hash = "sha256:feef753da0bf515411d82eb009b94aafabb46940ce82fd95575a523e004aa7c4", size = 11134, upload-time = "2026-09-15T18:13:56.642Z" },
+]
+
+[[package]]
 name = "livekit-plugins-openai"
 version = "1.8.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1266,6 +1299,7 @@ dependencies = [
     { name = "insightface" },
     { name = "livekit" },
     { name = "livekit-plugins-ai-coustics" },
+    { name = "livekit-plugins-anthropic" },
     { name = "livekit-plugins-openai" },
     { name = "numpy" },
     { name = "onnxruntime" },
@@ -1286,6 +1320,7 @@ requires-dist = [
     { name = "insightface", specifier = ">=0.7.3,<2" },
     { name = "livekit", specifier = ">=1.1.18" },
     { name = "livekit-plugins-ai-coustics", specifier = ">=0.3.2" },
+    { name = "livekit-plugins-anthropic", specifier = ">=1.8.2" },
     { name = "livekit-plugins-openai", specifier = ">=1.8.1" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "onnxruntime", specifier = ">=1.19.0" },
