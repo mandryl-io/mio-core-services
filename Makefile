@@ -1,25 +1,17 @@
-.PHONY: run-conversation-service eval
+.PHONY: run-conversation-service download-files
 
-PIPECAT_HOST ?= localhost
-PIPECAT_PORT ?= 8860
-PIPECAT_BASE_URL ?= http://$(PIPECAT_HOST):$(PIPECAT_PORT)
-CLIENT_PORT ?= 5173
-
-EVAL_PORT ?= 7860
-EVAL_BOT_URL ?= ws://$(PIPECAT_HOST):$(EVAL_PORT)
-EVAL_SCENARIOS ?= tests/scenarios/*.yaml
+ALSA_CONFIG_DIR ?= /usr/share/alsa
+ALSA_CONFIG_PATH ?= /usr/share/alsa/alsa.conf
+MIO_AUDIO_INPUT ?= USB Audio Device
+MIO_AUDIO_OUTPUT ?= UACDemoV1.0
+PA_ALSA_PLUGHW ?= 1
 
 run-conversation-service:
-	PIPECAT_HEADLESS=1 uv run main.py --port $(PIPECAT_PORT) & \
-	pid=$$!; \
-	trap 'kill $$pid 2>/dev/null; wait $$pid 2>/dev/null' EXIT INT TERM; \
-	until curl -sf $(PIPECAT_BASE_URL)/status >/dev/null; do sleep 0.5; done; \
-	cd client && npm install && \
-	PIPECAT_BASE_URL=$(PIPECAT_BASE_URL) CLIENT_PORT=$(CLIENT_PORT) npm start
+	ALSA_CONFIG_DIR=$(ALSA_CONFIG_DIR) ALSA_CONFIG_PATH=$(ALSA_CONFIG_PATH) \
+	PA_ALSA_PLUGHW=$(PA_ALSA_PLUGHW) \
+	lk agent console --input-device "$(MIO_AUDIO_INPUT)" \
+		--output-device "$(MIO_AUDIO_OUTPUT)" mio_core_services/conversation.py \
+		-- --system-prompt prompts/default.md
 
-eval:
-	uv run main.py -t eval --port $(EVAL_PORT) & \
-	pid=$$!; \
-	trap 'kill $$pid 2>/dev/null; wait $$pid 2>/dev/null' EXIT INT TERM; \
-	until nc -z $(PIPECAT_HOST) $(EVAL_PORT) 2>/dev/null; do sleep 0.5; done; \
-	pipecat eval run $(EVAL_SCENARIOS) --bot-url $(EVAL_BOT_URL) -v
+download-files:
+	uv run python -m livekit.agents download-files

@@ -1,32 +1,62 @@
 # To Run
 
 Ensure you have `uv`, run `uv sync` to install the dependencies.
+Install the LiveKit CLI once on Linux:
 
-Then, run `uv run main.py` to start the pipeline example.
+```
+sudo apt-get install -y jq
+curl -sSL https://get.livekit.io/cli | bash
+```
+
+# Conversation (LiveKit)
+
+The spoken conversation service is a thin LiveKit STT→LLM→TTS agent. Put these
+in `.env`:
+
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+
+Download local inference files once:
+
+```
+uv run python -m livekit.agents download-files
+```
+
+`console` runs the experimental pipeline against the local microphone and
+speaker without joining a LiveKit room:
+
+```
+make run-conversation-service
+# or
+lk agent console mio_core_services/conversation.py \
+  -- --system-prompt prompts/default.md
+```
+
+The pipeline remains unchanged from the experiment: its
+`inference.TurnDetector` still uses LiveKit's hosted inference gateway.
+
+On the Pi, `mio-conversation.service` starts the same console path at boot.
+Stop it before running console manually so two processes do not share the
+audio devices:
+
+```bash
+sudo systemctl stop mio-conversation.service
+make run-conversation-service
+```
+
+The service starts again on the next boot. To keep it disabled across reboots,
+use `sudo systemctl disable --now mio-conversation.service`; restore it with
+`sudo systemctl enable --now mio-conversation.service`. See
+[deploy/README.md](deploy/README.md).
 
 # Tests
-
-Unit tests:
 
 ```
 uv run pytest
 ```
-
-Scenarios live in `tests/scenarios/` and are run with [Pipecat evals](https://docs.pipecat.ai/pipecat/evals/overview), not pytest. Install the CLI once if you do not have it (`uv tool install "pipecat-ai[cli]"`).
-
-Start the agent on the eval transport in one terminal:
-
-```
-uv run main.py -t eval
-```
-
-In another terminal, run every scenario:
-
-```
-pipecat eval run tests/scenarios/*.yaml
-```
-
-The default judge is Ollama (`gemma2:9b`). Pull it with `ollama pull gemma2:9b` if needed.
 
 # Servos
 
