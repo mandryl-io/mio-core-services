@@ -17,6 +17,8 @@ livekit-wakephrase/
   models/              # copy the exported .onnx here after training
   scripts/
     listen.py          # mic listener for a trained ONNX model
+  modal_app.py         # Modal Labs GPU training
+  config_paths.py      # remap YAML paths onto a Modal Volume
   Makefile
 ```
 
@@ -93,6 +95,43 @@ Use the tiny config first to verify the toolchain (CPU-friendly, not production 
 make setup-test
 make train-test
 ```
+
+## Train on Modal Labs
+
+Production-scale `hey_mio.yaml` wants a GPU and ~17 GB of setup assets (Piper, ACAV features, MUSAN). The Modal app mounts those on a persistent Volume, remaps the YAML `data_dir` / `output_dir` onto it, and copies the exported ONNX back to `models/`.
+
+```bash
+cd livekit-wakephrase
+uv pip install "modal>=1.0"
+modal setup                 # once per machine; GPU jobs need a payment method
+
+# Smoke test (T4, tiny config)
+make modal-train-test
+# or: modal run modal_app.py --config configs/hey_mio_test.yaml --gpu T4
+
+# Production (L40S, detached so the client can disconnect)
+make modal-train
+# or: modal run --detach modal_app.py --config configs/hey_mio.yaml --gpu L40S
+```
+
+If you already have a Hugging Face token, export `HF_TOKEN` before `modal run` so the 16 GB ACAV download is authenticated. Setup is idempotent: re-running skips files that already exist on the `mio-wakephrase` Volume.
+
+| Make target | What it runs |
+| --- | --- |
+| `make modal-setup` | Download Piper / ACAV / RIRs / MUSAN onto the Volume |
+| `make modal-train-test` | Full pipeline with `hey_mio_test.yaml` on a T4 |
+| `make modal-train` | Full pipeline with `hey_mio.yaml` on an L40S (`--detach`) |
+| `make modal-download` | Pull ONNX / metrics from the Volume into `output/` and `models/` |
+
+Stages if you want them separately:
+
+```bash
+modal run modal_app.py --stage setup --config configs/hey_mio.yaml
+modal run --detach modal_app.py --stage train --config configs/hey_mio.yaml --skip-setup
+modal run modal_app.py --stage download --config configs/hey_mio.yaml
+```
+
+The same YAML configs work locally and on Modal. Relative `./data` and `./output` paths are rewritten at runtime to `/vol/wakephrase/data` and `/vol/wakephrase/output`.
 
 ## Inference
 
