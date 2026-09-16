@@ -1,0 +1,17 @@
+[project]
+name = "mio-livekit-wakephrase"
+version = "0.1.0"
+description = "Train and run a LiveKit wakephrase classifier for Hey Mio"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "livekit-wakeword[listener]>=0.2",
+]
+
+[project.optional-dependencies]
+train = [
+  "livekit-wakeword[train,eval,export]>=0.2",
+]
+
+[tool.uv]
+package = false
