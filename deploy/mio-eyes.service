@@ -1,0 +1,19 @@
+[Unit]
+Description=Mio idle eye blink
+# GPIO, not the servo UART. Independent of mio-head.service and of the network.
+
+[Service]
+Type=simple
+User=mio
+WorkingDirectory=/home/mio/mio-core-services-waveshare
+# ledenv sees system gpiozero; the repo .venv does not.
+ExecStart=/home/mio/ledenv/bin/python -m mio_core_services.lighting.idle_blink
+KillSignal=SIGTERM
+TimeoutStopSec=5
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

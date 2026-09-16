@@ -102,6 +102,12 @@ def test_eyes_drive_both_pins():
     assert (left.value, right.value) == (0, 1)
 
 
+def test_level_sets_both_lamps():
+    left, right = FakePin(), FakePin()
+    Eyes(left, right).level(0.4)
+    assert (left.value, right.value) == (0.4, 0.4)
+
+
 def test_off_clears_both():
     left, right = FakePin(), FakePin()
     eyes = Eyes(left, right)

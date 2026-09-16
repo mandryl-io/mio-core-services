@@ -144,27 +144,30 @@ servos.
 The colour logic is separate from the hardware and tested off the Pi:
 
 ```bash
-uv run --frozen pytest tests/test_color_cycle.py tests/test_eyes.py
+uv run --frozen pytest tests/test_color_cycle.py tests/test_eyes.py tests/test_idle_blink.py
 ```
 
 
 # The eyes
 
-Two white LEDs on GPIO23 and GPIO24, run from `gpiozero`:
+Two white LEDs on GPIO23 and GPIO24. The boot path is a human-like idle blink:
 
 ```bash
 cd ~/mio-core-services-waveshare
-~/ledenv/bin/python -m mio_core_services.lighting.eyes
+~/ledenv/bin/python -m mio_core_services.lighting.idle_blink
 ```
 
-The default is `--mode alternate`: the left eye blinks on its own for three
-seconds, then the right eye blinks on its own for three seconds. They are
-never lit at the same time. Six seconds a lap, repeating until Ctrl+C.
+Both eyes stay open, then close together for about 200 ms, then open again.
+Timing lives in `config/blink.yaml`: a little slower than the human mean,
+plus gaussian noise. `mio-eyes.service` starts this at power-on; see
+[deploy/README.md](../deploy/README.md).
 
-The earlier pattern is still there as `--mode flashes` — left three times,
-right three times, then both together for three seconds:
+The earlier demo patterns are still in `lighting.eyes`: `--mode alternate`
+(each eye alone for three seconds) and `--mode flashes` (left x3, right x3,
+then both):
 
 ```bash
+~/ledenv/bin/python -m mio_core_services.lighting.eyes
 ~/ledenv/bin/python -m mio_core_services.lighting.eyes --mode flashes
 ```
 
@@ -209,13 +212,13 @@ Nothing is shared: the servos are on the UART, the RGB light is on GPIO18 and
 the eyes are on GPIO23/24.
 
 ```bash
-~/ledenv/bin/python -m mio_core_services.lighting.eyes &
+~/ledenv/bin/python -m mio_core_services.lighting.idle_blink &
 ~/ledenv/bin/python -m mio_core_services.lighting.color_cycle
 ```
 
 Stop the cycle with Ctrl+C, then bring the eyes back with `fg` and Ctrl+C, or
-`kill %1`. Backgrounding it that way means it dies with the SSH session; a
-`systemd` unit like `mio-head.service` is the answer if you want it permanent.
+`kill %1`. Backgrounding it that way means it dies with the SSH session;
+`mio-eyes.service` is the permanent boot path.
 
 ## Eye troubleshooting
 

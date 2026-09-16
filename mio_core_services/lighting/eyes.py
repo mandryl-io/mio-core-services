@@ -139,6 +139,12 @@ class Eyes:
         self._left.value = 1 if left else 0
         self._right.value = 1 if right else 0
 
+    def level(self, value: float) -> None:
+        """Both lamps, 0–1. Used for a fade rather than a hard on/off."""
+        value = max(0.0, min(1.0, value))
+        self._left.value = value
+        self._right.value = value
+
     def off(self) -> None:
         self.set(False, False)
 
@@ -150,7 +156,7 @@ class Eyes:
 def open_eyes(left_pin: int, right_pin: int, active_low: bool) -> Eyes:
     """Claim both pins, or explain what is missing."""
     try:
-        from gpiozero import LED
+        from gpiozero import PWMLED
     except ImportError as exc:
         raise SystemExit(
             f"Cannot import gpiozero ({exc}).\n"
@@ -159,8 +165,8 @@ def open_eyes(left_pin: int, right_pin: int, active_low: bool) -> Eyes:
         ) from exc
 
     try:
-        left = LED(left_pin, active_high=not active_low)
-        right = LED(right_pin, active_high=not active_low)
+        left = PWMLED(left_pin, active_high=not active_low, frequency=500)
+        right = PWMLED(right_pin, active_high=not active_low, frequency=500)
     except Exception as exc:  # busy pin, no permission, no gpiochip
         raise SystemExit(
             f"Cannot claim GPIO {left_pin} and {right_pin} ({exc}).\n"

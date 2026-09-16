@@ -1,0 +1,23 @@
+# Idle blink timing. Loaded by lighting.idle_blink (and mio-eyes.service).
+#
+# Literature, resting adults:
+#   blink duration  0.18 s ± 0.032  (eNeuro 2024 median ~170-192 ms)
+#   duration range  0.10-0.40 s     (BioNumbers / Schiffman)
+#   blink rate      10.3 ± 3.1 /min (Doughty 2002)
+#   inter-blink     6.4 ± 2.4 s
+#
+# Tuned by eye: a bit slower than the published mean, a bit quicker than
+# mean-minus-one-SD (that landed at ~8.3 s and felt sleepy).
+#   ~8.6 blinks/min  →  open_mean 7.0 s
+#   eyelid a shade over the 180 ms median
+# gaussian noise still uses the published spreads.
+
+blink_mean: 0.20
+blink_spread: 0.032
+blink_min: 0.12
+blink_max: 0.40
+
+open_mean: 7.0
+open_spread: 2.4
+open_min: 3.5
+open_max: 12.0

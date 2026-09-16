@@ -96,13 +96,14 @@ It shares no hardware with the servos, so `mio-head.service` can keep the head
 moving while it runs.
 
 Two white eye LEDs on GPIO23 and GPIO24 (pins 16 and 18, grounds on pin 14)
-are a separate program — each eye blinking on its own for three seconds in
-turn, never both at once (`--mode flashes` gives the left x3, right x3, both
-pattern instead):
+idle-blink on boot via `mio-eyes.service`: both stay open, then close together
+for a short human-length blink every few seconds. Timing is in
+`config/blink.yaml`. The older demo patterns (`--mode alternate` / `flashes`)
+are still in `lighting.eyes` if you want them:
 
 ```bash
-~/ledenv/bin/python -m mio_core_services.lighting.eyes
+~/ledenv/bin/python -m mio_core_services.lighting.idle_blink
 ```
 
-Swap `--left-pin` and `--right-pin` if the wrong eye goes first. The RGB light,
+Swap `--left-pin` and `--right-pin` if the wrong eye is mapped. The RGB light,
 the eyes and the head all run at once; they share no hardware.
