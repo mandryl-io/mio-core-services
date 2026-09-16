@@ -28,7 +28,9 @@ if ! command -v "$UV_BIN" >/dev/null 2>&1; then
   UV_BIN="$HOME/.local/bin/uv"
 fi
 "$UV_BIN" sync
-"$PY" -m mio_core_services.conversation download-files
+if ! "$PY" -m mio_core_services.conversation download-files; then
+  echo "download-files did not succeed; continuing so boot units still install."
+fi
 
 echo
 echo "== 3. Restore the reviewed register baseline =="
