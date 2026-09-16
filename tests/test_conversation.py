@@ -24,10 +24,8 @@ def _clear_required_env(monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def test_system_prompt_argument(monkeypatch):
-    monkeypatch.setattr(
-        "sys.argv", ["conversation.py", "--system-prompt", "prompts/custom.md"]
-    )
+def test_system_prompt_environment(monkeypatch):
+    monkeypatch.setenv("MIO_SYSTEM_PROMPT_PATH", "prompts/custom.md")
     assert system_prompt_path() == Path("prompts/custom.md")
 
 

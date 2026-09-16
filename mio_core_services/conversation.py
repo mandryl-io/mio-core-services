@@ -1,4 +1,3 @@
-import argparse
 import os
 from pathlib import Path
 
@@ -38,10 +37,7 @@ REQUIRED_ENV_VARS = (
 
 
 def system_prompt_path() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--system-prompt", default="prompts/default.md")
-    args, _ = parser.parse_known_args()
-    return Path(args.system_prompt)
+    return Path(os.environ.get("MIO_SYSTEM_PROMPT_PATH", "prompts/default.md"))
 
 
 def load_system_prompt(path: Path) -> str:
