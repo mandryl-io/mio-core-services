@@ -1,0 +1,18 @@
+# Training downloads and generated artifacts (large)
+data/
+output/
+
+# Local virtualenv if created inside this folder
+.venv/
+
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info/
+
+# Exported models that are recreated by training (keep README only)
+models/*.onnx
+models/*.pt
+models/*.json
+models/*.png
+!models/.gitkeep

@@ -1,0 +1,101 @@
+# Model name — used for output directory and exported model filename
+model_name: hey_mio
+
+# Wake word phrases to detect (include spelling / pronunciation variants)
+target_phrases:
+  - "hey mio"
+  - "hey meo"
+
+# ============================================================================
+# Data Generation
+# ============================================================================
+
+# Training samples per class (positive + negative)
+# Suggestion: 5000-10000 for quick experiments, 20000+ for production
+n_samples: 25000
+
+# Validation samples per class
+n_samples_val: 5000
+n_background_samples: 2000
+n_background_samples_val: 500
+
+# VITS TTS batch size (higher = faster, but more VRAM)
+tts_batch_size: 50
+
+# Adversarial negatives — phonetically similar phrases that should NOT trigger
+custom_negative_phrases:
+  # Bare wake word without prefix
+  - "mio"
+  - "meo"
+  # Phonetically similar prefixes / near-misses
+  - "hey me"
+  - "hey meal"
+  - "hey meow"
+  - "hey milo"
+  - "hey mayo"
+  - "hey mia"
+  - "hey neo"
+  - "hey neil"
+  - "hey leo"
+  - "hey memo"
+  - "hey mirror"
+  - "hey me oh"
+  # Partial / adjacent phrases
+  - "a mio"
+  - "they mio"
+  - "hey me too"
+  - "hey music"
+
+# ============================================================================
+# TTS Parameters (VITS + SLERP speaker blending)
+# ============================================================================
+
+noise_scales: [0.98]
+noise_scale_ws: [0.98]
+length_scales: [0.75, 1.0, 1.25]
+slerp_weights: [0.2, 0.35, 0.5, 0.65, 0.8]
+
+# ============================================================================
+# Paths
+# ============================================================================
+
+data_dir: ./data
+output_dir: ./output
+
+# ============================================================================
+# Augmentation
+# ============================================================================
+
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  rounds: 3
+  background_paths: [./data/backgrounds]
+  rir_paths: [./data/rirs]
+
+# ============================================================================
+# Model Architecture
+# ============================================================================
+
+model:
+  # conv_attention gives the best temporal awareness / lowest FPPH
+  model_type: conv_attention
+  # small for edge devices; medium for better accuracy on server / Pi-class GPUs
+  model_size: medium
+
+# ============================================================================
+# Training
+# ============================================================================
+
+steps: 100000
+learning_rate: 0.0001
+weight_decay: 0.01
+label_smoothing: 0.05
+max_negative_weight: 3000
+target_fp_per_hour: 0.1
+
+batch_n_per_class:
+  positive: 50
+  adversarial_negative: 50
+  ACAV100M_sample: 1024
+  background_noise: 50
