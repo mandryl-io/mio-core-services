@@ -18,6 +18,7 @@ in `.env`:
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+- `MIO_SYSTEM_PROMPT_PATH` (optional; defaults to `prompts/default.md`)
 
 Download local inference files once:
 
@@ -31,8 +32,8 @@ speaker without joining a LiveKit room:
 ```
 make run-conversation-service
 # or
-lk agent console mio_core_services/conversation.py \
-  -- --system-prompt prompts/default.md
+MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
+  lk agent console mio_core_services/conversation.py
 ```
 
 The pipeline remains unchanged from the experiment: its
