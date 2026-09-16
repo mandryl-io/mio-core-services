@@ -31,7 +31,8 @@ speaker without joining a LiveKit room:
 ```
 make run-conversation-service
 # or
-lk agent console mio_core_services/conversation.py
+lk agent console mio_core_services/conversation.py \
+  -- --system-prompt prompts/default.md
 ```
 
 The pipeline remains unchanged from the experiment: its
@@ -39,7 +40,17 @@ The pipeline remains unchanged from the experiment: its
 
 On the Pi, `mio-conversation.service` starts the same console path at boot.
 Stop it before running console manually so two processes do not share the
-audio devices. See [deploy/README.md](deploy/README.md).
+audio devices:
+
+```bash
+sudo systemctl stop mio-conversation.service
+make run-conversation-service
+```
+
+The service starts again on the next boot. To keep it disabled across reboots,
+use `sudo systemctl disable --now mio-conversation.service`; restore it with
+`sudo systemctl enable --now mio-conversation.service`. See
+[deploy/README.md](deploy/README.md).
 
 # Tests
 
