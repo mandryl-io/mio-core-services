@@ -3,7 +3,6 @@ from mio_core_services.perception.backend import (
     FaceBackend,
     NoOpFaceBackend,
 )
-from mio_core_services.perception.engine import PerceptionEngine
 from mio_core_services.perception.occupancy import (
     Occupancy,
     OccupancySnapshot,
@@ -20,5 +19,4 @@ __all__ = [
     "Occupancy",
     "OccupancySnapshot",
     "Occupant",
-    "PerceptionEngine",
 ]

@@ -1,9 +1,5 @@
-from pipecat.evals.transport import EvalTransportParams
-from pipecat.transports.base_transport import TransportParams
-
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
-DEFAULT_MEDICATION_DB_PATH = "./mio-reminders.sqlite"
 
 MIO_FACE_COLLECTION = "mio-face-embeddings"
 DEFAULT_FACE_CHROMA_PATH = "./mio-faces"
@@ -12,24 +8,11 @@ DEFAULT_FACE_MATCH_THRESHOLD = 0.45
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
-DEFAULT_LLM_MODEL = "gpt-realtime-2"
-DEFAULT_TRANSCRIPTION_MODEL = "gpt-live-transcribe"
 DEFAULT_STT_MODEL = "gpt-4o-transcribe"
 DEFAULT_CONVERSATION_LLM_MODEL = "gpt-4.1"
 DEFAULT_TTS_VOICE = "alloy"
 DEFAULT_BOT_NAME = "Mio"
 DEFAULT_INITIAL_MESSAGE = f"Hi, I'm {DEFAULT_BOT_NAME}. How are you today?"
-DEFAULT_TRANSPORT_PARAMS = {
-    "webrtc": lambda: TransportParams(
-        audio_in_enabled=True,
-        audio_out_enabled=True,
-        video_in_enabled=True,
-    ),
-    "eval": lambda: EvalTransportParams(
-        audio_in_enabled=True,
-        audio_out_enabled=True,
-    ),
-}
 DEFAULT_SYSTEM_PROMPT = """
 # Voice Companion System Prompt
 
