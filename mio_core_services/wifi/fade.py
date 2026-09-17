@@ -5,8 +5,10 @@ from __future__ import annotations
 import math
 import time
 
-FADE_PERIOD = 3.0
-FADE_STEP = 0.02
+from mio_core_services.constants import (
+    WIFI_FADE_PERIOD as FADE_PERIOD,
+    WIFI_FADE_STEP as FADE_STEP,
+)
 
 
 def fade_level(elapsed: float, period: float = FADE_PERIOD) -> float:

@@ -1,8 +1,10 @@
 """WiFi bootstrap: join a saved network, or raise a setup hotspot until one is chosen."""
 
-HOTSPOT_SSID = "Mio-Setup"
-HOTSPOT_PASSWORD = "miosetup"
-HOTSPOT_CONNECTION = "mio-setup"
-HOTSPOT_GATEWAY = "10.42.0.1"
-WIFI_DEVICE = "wlan0"
-SETUP_PORT = 80
+from mio_core_services.constants import (
+    WIFI_DEVICE,
+    WIFI_HOTSPOT_CONNECTION as HOTSPOT_CONNECTION,
+    WIFI_HOTSPOT_GATEWAY as HOTSPOT_GATEWAY,
+    WIFI_HOTSPOT_PASSWORD as HOTSPOT_PASSWORD,
+    WIFI_HOTSPOT_SSID as HOTSPOT_SSID,
+    WIFI_SETUP_PORT as SETUP_PORT,
+)

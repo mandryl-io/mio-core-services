@@ -10,12 +10,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from mio_core_services.constants import WIFI_JOIN_POLL, WIFI_JOIN_WAIT
 from mio_core_services.wifi.nmcli import Radio, RadioError, parse_connect_body
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_APP_DIR = REPO_ROOT / "app"
-JOIN_WAIT = 15.0
-JOIN_POLL = 1.0
 
 
 class SetupState:
@@ -69,7 +68,7 @@ class SetupState:
     def _join(self, ssid: str, password: str) -> None:
         try:
             self.radio.join(ssid, password)
-            deadline = time.monotonic() + JOIN_WAIT
+            deadline = time.monotonic() + WIFI_JOIN_WAIT
             while time.monotonic() < deadline:
                 if self.radio.is_home_connected():
                     with self._lock:
@@ -78,7 +77,7 @@ class SetupState:
                         self.last_error = None
                     self.done.set()
                     return
-                time.sleep(JOIN_POLL)
+                time.sleep(WIFI_JOIN_POLL)
             raise RadioError("Joined, but the Pi has no address yet.")
         except RadioError as exc:
             try:

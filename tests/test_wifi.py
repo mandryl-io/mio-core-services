@@ -218,3 +218,12 @@ def test_http_rejects_empty_ssid():
         assert caught.value.code == 400
     finally:
         server.shutdown()
+
+
+def test_run_in_thread_runs_the_passed_function():
+    from mio_core_services.wifi.bootstrap import run_in_thread
+
+    done = threading.Event()
+    thread = run_in_thread(done.set, name="wifi-test")
+    assert done.wait(timeout=1)
+    thread.join(timeout=1)

@@ -177,6 +177,15 @@ def open_eyes(left_pin: int, right_pin: int, active_low: bool) -> Eyes:
     return Eyes(left, right)
 
 
+def try_open_eyes(left_pin: int, right_pin: int, active_low: bool) -> Eyes | None:
+    """Claim both pins, or return None if GPIO is missing or busy."""
+    try:
+        return open_eyes(left_pin, right_pin, active_low)
+    except SystemExit as exc:
+        print(f"Eyes unavailable ({exc}). Continuing without them.", flush=True)
+        return None
+
+
 def _sleep(seconds: float, stopping: Stopping) -> None:
     deadline = time.monotonic() + seconds
     while not stopping.requested:
