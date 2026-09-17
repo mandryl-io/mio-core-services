@@ -1,6 +1,9 @@
 [Unit]
 Description=Mio idle eye blink
-# GPIO, not the servo UART. Independent of mio-head.service and of the network.
+# After WiFi bootstrap so setup can fade the eyes on GPIO23/24, then release
+# the pins before idle blink takes them.
+After=mio-wifi.service
+Wants=mio-wifi.service
 
 [Service]
 Type=simple

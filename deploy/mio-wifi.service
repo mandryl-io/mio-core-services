@@ -1,0 +1,24 @@
+[Unit]
+Description=Mio WiFi bootstrap
+# Runs first: check for a home network, and if none, raise a setup hotspot
+# until the phone app picks one. Head, eyes, and conversation wait on this unit.
+After=NetworkManager.service sys-subsystem-net-devices-wlan0.device
+Wants=NetworkManager.service
+Before=mio-head.service mio-eyes.service mio-conversation.service
+DefaultDependencies=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=infinity
+User=root
+WorkingDirectory=/home/mio/mio-core-services-waveshare
+# ledenv sees system gpiozero so the slow eye fade works; nmcli is a subprocess.
+ExecStart=/home/mio/ledenv/bin/python -m mio_core_services.wifi.bootstrap
+KillSignal=SIGTERM
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
