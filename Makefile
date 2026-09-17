@@ -1,4 +1,4 @@
-.PHONY: run-conversation-service eval
+.PHONY: run-conversation-service eval modal-setup modal-train modal-train-test modal-download
 
 PIPECAT_HOST ?= localhost
 PIPECAT_PORT ?= 8860
@@ -23,3 +23,6 @@ eval:
 	trap 'kill $$pid 2>/dev/null; wait $$pid 2>/dev/null' EXIT INT TERM; \
 	until nc -z $(PIPECAT_HOST) $(EVAL_PORT) 2>/dev/null; do sleep 0.5; done; \
 	pipecat eval run $(EVAL_SCENARIOS) --bot-url $(EVAL_BOT_URL) -v
+
+modal-setup modal-train modal-train-test modal-download:
+	$(MAKE) -C livekit-wakephrase $@
