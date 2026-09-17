@@ -1,7 +1,25 @@
 # To Run
 
-Ensure you have `uv`, run `uv sync` to install the dependencies.
-Install the LiveKit CLI once on Linux:
+You need `uv` and the LiveKit CLI (`lk`). The CLI is a prerequisite: the
+conversation service is started with `lk agent console`. Then run `uv sync`
+to install Python dependencies.
+
+## LiveKit CLI
+
+On a Mac, this Makefile target installs the CLI with Homebrew, installs `uv`
+if it is missing, syncs the venv, and downloads local inference files:
+
+```
+make setup-dev-osx
+```
+
+To install the CLI by itself on a Mac:
+
+```
+brew install livekit-cli
+```
+
+On Linux:
 
 ```
 sudo apt-get install -y jq
@@ -27,7 +45,7 @@ over `.env`. The LLM is GLM 5.3 on Baseten's OpenAI-compatible endpoint
 (`zai-org/GLM-5.3`); barge-in is on via Silero VAD and adaptive
 interruption.
 
-Download local inference files once:
+Download local inference files once (`make setup-dev-osx` already does this):
 
 ```
 uv run python -m livekit.agents download-files
@@ -42,6 +60,9 @@ make run-conversation-service
 MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
   lk agent console mio_core_services/conversation.py
 ```
+
+On a Mac, use the `lk agent console` form so you are not bound to the Pi USB
+device names in `run-conversation-service`.
 
 The turn detector still uses LiveKit's hosted inference gateway. Barge-in
 uses local Silero VAD plus adaptive interruption so the person can talk
