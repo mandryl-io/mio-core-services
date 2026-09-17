@@ -12,6 +12,9 @@ dependencies = [
 train = [
   "livekit-wakeword[train,eval,export]>=0.2",
 ]
+modal = [
+  "modal>=1.0",
+]
 
 [tool.uv]
 package = false
