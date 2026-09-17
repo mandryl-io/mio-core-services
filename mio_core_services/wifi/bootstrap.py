@@ -15,9 +15,11 @@ from pathlib import Path
 from mio_core_services.constants import (
     WIFI_CONNECT_WAIT,
     WIFI_DEVICE,
+    WIFI_FADE_JOIN_TIMEOUT,
     WIFI_FADE_PERIOD,
     WIFI_HOTSPOT_RETRY,
     WIFI_RETRY_SLEEP,
+    WIFI_SETUP_POLL,
     WIFI_SETUP_PORT,
 )
 from mio_core_services.lighting.eyes import (
@@ -102,7 +104,7 @@ def run_setup(radio: Radio, stopping: Stopping, eyes, port: int, app_dir: Path,
         if radio.is_home_connected():
             state.done.set()
             break
-        _sleep(0.4, stopping)
+        _sleep(WIFI_SETUP_POLL, stopping)
     if state.done.is_set():
         print(f"Joined {radio.active_ssid() or 'WiFi'}.", flush=True)
     return fade_thread, http
@@ -139,7 +141,12 @@ def main() -> None:
         if http is not None:
             http.shutdown()
         if fade_thread is not None:
-            fade_thread.join(timeout=1.0)
+            fade_thread.join(timeout=WIFI_FADE_JOIN_TIMEOUT)
+            if fade_thread.is_alive():
+                print(
+                    "Fade thread did not stop in time; releasing the eye pins anyway.",
+                    flush=True,
+                )
         if eyes is not None:
             eyes.off()
             eyes.close()
