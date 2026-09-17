@@ -1,7 +1,7 @@
 [Unit]
 Description=Mio conversation
-# The local console uses OpenAI and LiveKit's existing hosted turn detector,
-# so wait for connectivity rather than for GPIO or the servo UART.
+# The local console uses OpenAI STT/TTS, Baseten GLM 5.3, and LiveKit's
+# hosted turn detector, so wait for connectivity rather than GPIO/UART.
 After=network-online.target
 Wants=network-online.target
 
@@ -10,6 +10,9 @@ Type=simple
 User=mio
 WorkingDirectory=/home/mio/mio-core-services-waveshare
 EnvironmentFile=/home/mio/mio-core-services-waveshare/.env
+# OS/root-level secrets such as BASETEN_API_KEY. Loaded after .env so the
+# host value wins. systemd does not read /etc/environment on its own.
+EnvironmentFile=-/etc/default/mio
 Environment=ALSA_CONFIG_DIR=/usr/share/alsa
 Environment=ALSA_CONFIG_PATH=/usr/share/alsa/alsa.conf
 Environment=PA_ALSA_PLUGHW=1

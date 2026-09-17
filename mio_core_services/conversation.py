@@ -1,9 +1,10 @@
 import os
+from collections.abc import MutableMapping
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)
 
 from livekit import agents
 from livekit.agents import (
@@ -14,10 +15,11 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, anthropic, openai
+from livekit.plugins import ai_coustics, baseten, openai, silero
 
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
+    DEFAULT_CONVERSATION_LLM_REASONING_EFFORT,
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_STT_MODEL,
     DEFAULT_TTS_INSTRUCTIONS,
@@ -28,16 +30,57 @@ from mio_core_services.constants import (
 # NOTE(@dillondesilva): Move this validation to a shared module when another
 # service needs the same startup safety check.
 REQUIRED_ENV_VARS = (
-    "ANTHROPIC_API_KEY",
+    "BASETEN_API_KEY",
     "OPENAI_API_KEY",
     "LIVEKIT_URL",
     "LIVEKIT_API_KEY",
     "LIVEKIT_API_SECRET",
 )
 
+# systemd does not load /etc/environment. If the key is set at OS/root
+# level, pick it up from these files when the process env is empty.
+_OS_LEVEL_ENV_FILES = (
+    Path("/etc/environment"),
+    Path("/etc/default/mio"),
+)
+
 
 def system_prompt_path() -> Path:
     return Path(os.environ.get("MIO_SYSTEM_PROMPT_PATH", "prompts/default.md"))
+
+
+def _env_file_value(path: Path, name: str) -> str | None:
+    if not path.is_file():
+        return None
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = line.removeprefix("export ")
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == name:
+            return value.strip().strip("'").strip('"') or None
+    return None
+
+
+def apply_os_level_baseten_api_key(
+    environ: MutableMapping[str, str] | None = None,
+    env_files: tuple[Path, ...] | None = None,
+) -> None:
+    env = os.environ if environ is None else environ
+    if env.get("BASETEN_API_KEY"):
+        return
+    files = _OS_LEVEL_ENV_FILES if env_files is None else env_files
+    for path in files:
+        value = _env_file_value(path, "BASETEN_API_KEY")
+        if value:
+            env["BASETEN_API_KEY"] = value
+            return
+
+
+def baseten_api_key() -> str | None:
+    apply_os_level_baseten_api_key()
+    return os.environ.get("BASETEN_API_KEY")
 
 
 def load_system_prompt(path: Path) -> str:
@@ -48,6 +91,7 @@ def load_system_prompt(path: Path) -> str:
 
 
 def require_env() -> None:
+    apply_os_level_baseten_api_key()
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
         raise ValueError(
@@ -57,20 +101,36 @@ def require_env() -> None:
 
 class Assistant(Agent):
     def __init__(self, prompt_path: Path) -> None:
-        super().__init__(instructions=load_system_prompt(prompt_path))
+        super().__init__(
+            instructions=load_system_prompt(prompt_path),
+            turn_handling=TurnHandlingOptions(
+                interruption={"enabled": True, "mode": "adaptive"},
+            ),
+        )
 
 
 def create_session() -> AgentSession:
     return AgentSession(
         stt=openai.STT(model=DEFAULT_STT_MODEL, language="en"),
-        llm=anthropic.LLM(model=DEFAULT_CONVERSATION_LLM_MODEL),
+        llm=baseten.LLM(
+            model=DEFAULT_CONVERSATION_LLM_MODEL,
+            api_key=baseten_api_key(),
+            reasoning_effort=DEFAULT_CONVERSATION_LLM_REASONING_EFFORT,
+        ),
         tts=openai.TTS(
             model=DEFAULT_TTS_MODEL,
             voice=DEFAULT_TTS_VOICE,
             instructions=DEFAULT_TTS_INSTRUCTIONS,
         ),
+        vad=silero.VAD.load(),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
+            interruption={
+                "enabled": True,
+                "mode": "adaptive",
+                "min_duration": 0.5,
+                "min_words": 0,
+            },
         ),
     )
 
@@ -93,4 +153,4 @@ async def mio_conversation(ctx: agents.JobContext):
             ),
         ),
     )
-    await session.say(DEFAULT_INITIAL_MESSAGE)
+    await session.say(DEFAULT_INITIAL_MESSAGE, allow_interruptions=True)
