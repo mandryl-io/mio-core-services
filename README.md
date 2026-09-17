@@ -13,12 +13,18 @@ curl -sSL https://get.livekit.io/cli | bash
 The spoken conversation service is a thin LiveKit STT→LLM→TTS agent. Put these
 in `.env`:
 
-- `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `MIO_SYSTEM_PROMPT_PATH` (optional; defaults to `prompts/default.md`)
+
+`BASETEN_API_KEY` is read from the process environment. Set it at OS/root
+level (for example `/etc/environment` or `/etc/default/mio`) so it is not
+tied to the repo `.env`. A value already in the process environment wins
+over `.env`. The LLM is GLM 5.3 on Baseten's OpenAI-compatible endpoint
+(`zai-org/GLM-5.3`); barge-in is on via Silero VAD and adaptive
+interruption.
 
 Download local inference files once:
 
@@ -36,8 +42,9 @@ MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
   lk agent console mio_core_services/conversation.py
 ```
 
-The pipeline remains unchanged from the experiment: its
-`inference.TurnDetector` still uses LiveKit's hosted inference gateway.
+The turn detector still uses LiveKit's hosted inference gateway. Barge-in
+uses local Silero VAD plus adaptive interruption so the person can talk
+over Mio.
 
 On the Pi, `mio-conversation.service` starts the same console path at boot.
 Stop it before running console manually so two processes do not share the
