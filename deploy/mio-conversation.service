@@ -1,0 +1,31 @@
+[Unit]
+Description=Mio conversation
+# The local console uses OpenAI and LiveKit's existing hosted turn detector,
+# so wait for connectivity rather than for GPIO or the servo UART.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mio
+WorkingDirectory=/home/mio/mio-core-services-waveshare
+EnvironmentFile=/home/mio/mio-core-services-waveshare/.env
+Environment=ALSA_CONFIG_DIR=/usr/share/alsa
+Environment=ALSA_CONFIG_PATH=/usr/share/alsa/alsa.conf
+Environment=PA_ALSA_PLUGHW=1
+Environment=MIO_SYSTEM_PROMPT_PATH=prompts/default.md
+# The current LiveKit CLI drives local console audio without the deprecated
+# Python run_app wrapper.
+ExecStart=/usr/bin/env lk agent console --input-device "USB Audio Device" --output-device "UACDemoV1.0" mio_core_services/conversation.py
+StandardInput=tty
+TTYPath=/dev/tty8
+TTYReset=yes
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

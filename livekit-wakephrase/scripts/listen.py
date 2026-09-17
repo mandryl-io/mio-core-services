@@ -36,7 +36,7 @@ async def main() -> None:
     if not args.model.is_file():
         raise SystemExit(
             f"Model not found: {args.model}\n"
-            "Train with `make train` then `make copy-model`, "
+            "Train with `make train` or `make modal-train`, then `make copy-model`, "
             "or pass --model path/to/hey_mio.onnx"
         )
 
