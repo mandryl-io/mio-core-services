@@ -18,8 +18,13 @@ DEFAULT_TTS_INSTRUCTIONS = (
     "Use an unhurried conversational pace."
 )
 DEFAULT_BOT_NAME = "Mio"
-DEFAULT_INITIAL_MESSAGE = (
-    f"Hi, I'm {DEFAULT_BOT_NAME}. It's good to sit down with you. "
-    "If something's already on your mind we can start there — "
-    "otherwise I'll get us going."
+INITIAL_GREETING_INSTRUCTIONS = (
+    "This is the first turn of a new conversation. Greet the person as "
+    f"{DEFAULT_BOT_NAME} in one or two short, natural spoken sentences. "
+    "Sound like a kind person sitting down with them, not a script or an "
+    "announcement, and vary the wording each time. Then offer two or three "
+    "specific things you could do together, in a flowing sentence rather "
+    "than a list: hearing what is on their mind, a word game, a little "
+    "trivia, or talking about family, music, or a favourite memory. Invite "
+    "them to pick one or to start somewhere else."
 )

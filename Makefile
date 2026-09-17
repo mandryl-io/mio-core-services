@@ -1,4 +1,4 @@
-.PHONY: run-conversation-service download-files
+.PHONY: run-conversation-service download-files setup-dev-osx
 
 ALSA_CONFIG_DIR ?= /usr/share/alsa
 ALSA_CONFIG_PATH ?= /usr/share/alsa/alsa.conf
@@ -16,3 +16,20 @@ run-conversation-service:
 
 download-files:
 	uv run python -m livekit.agents download-files
+
+setup-dev-osx:
+	@if [ "$$(uname -s)" != "Darwin" ]; then \
+		echo "setup-dev-osx is for macOS."; \
+		echo "On Linux, install the LiveKit CLI with:"; \
+		echo "  sudo apt-get install -y jq"; \
+		echo "  curl -sSL https://get.livekit.io/cli | bash"; \
+		exit 1; \
+	fi
+	@command -v brew >/dev/null 2>&1 || { \
+		echo "Homebrew is required. Install it from https://brew.sh"; \
+		exit 1; \
+	}
+	@command -v uv >/dev/null 2>&1 || brew install uv
+	brew install livekit-cli
+	uv sync
+	$(MAKE) download-files

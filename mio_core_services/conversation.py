@@ -20,11 +20,11 @@ from livekit.plugins import ai_coustics, baseten, deepgram, openai, silero
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_CONVERSATION_LLM_REASONING_EFFORT,
-    DEFAULT_INITIAL_MESSAGE,
     DEFAULT_STT_MODEL,
     DEFAULT_TTS_INSTRUCTIONS,
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
+    INITIAL_GREETING_INSTRUCTIONS,
 )
 
 # NOTE(@dillondesilva): Move this validation to a shared module when another
@@ -133,6 +133,13 @@ def create_session() -> AgentSession:
                 "min_words": 0,
             },
         ),
+        )
+
+
+def start_opening_turn(session: AgentSession):
+    return session.generate_reply(
+        instructions=INITIAL_GREETING_INSTRUCTIONS,
+        allow_interruptions=True,
     )
 
 
@@ -154,4 +161,4 @@ async def mio_conversation(ctx: agents.JobContext):
             ),
         ),
     )
-    await session.say(DEFAULT_INITIAL_MESSAGE, allow_interruptions=True)
+    await start_opening_turn(session)

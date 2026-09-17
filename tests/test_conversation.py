@@ -11,6 +11,7 @@ from mio_core_services.constants import (
     DEFAULT_TTS_INSTRUCTIONS,
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
+    INITIAL_GREETING_INSTRUCTIONS,
 )
 from mio_core_services.conversation import (
     REQUIRED_ENV_VARS,
@@ -18,6 +19,7 @@ from mio_core_services.conversation import (
     create_session,
     load_system_prompt,
     require_env,
+    start_opening_turn,
     system_prompt_path,
 )
 
@@ -152,3 +154,28 @@ def test_create_session_uses_conversation_models(monkeypatch):
     assert turn_handling["interruption"]["enabled"] is True
     assert turn_handling["interruption"]["mode"] == "adaptive"
     assert captured["vad"] is True
+
+
+def test_opening_turn_asks_llm_to_generate_a_varied_greeting():
+    session = Mock()
+    start_opening_turn(session)
+    session.generate_reply.assert_called_once_with(
+        instructions=INITIAL_GREETING_INSTRUCTIONS,
+        allow_interruptions=True,
+    )
+    session.say.assert_not_called()
+
+
+def test_greeting_instructions_offer_concrete_things_to_talk_about():
+    text = INITIAL_GREETING_INSTRUCTIONS.lower()
+    assert "word game" in text
+    assert "on their mind" in text
+    assert "vary" in text
+
+
+def test_default_system_prompt_suggests_opening_topics():
+    prompt = load_system_prompt(Path("prompts/default.md")).lower()
+    assert "## how to open" in prompt
+    assert "word game" in prompt
+    assert "on their mind" in prompt
+    assert "you already greeted them" not in prompt
