@@ -15,7 +15,7 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, baseten, openai, silero
+from livekit.plugins import ai_coustics, baseten, deepgram, openai, silero
 
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
@@ -31,6 +31,7 @@ from mio_core_services.constants import (
 # service needs the same startup safety check.
 REQUIRED_ENV_VARS = (
     "BASETEN_API_KEY",
+    "DEEPGRAM_API_KEY",
     "OPENAI_API_KEY",
     "LIVEKIT_URL",
     "LIVEKIT_API_KEY",
@@ -111,7 +112,7 @@ class Assistant(Agent):
 
 def create_session() -> AgentSession:
     return AgentSession(
-        stt=openai.STT(model=DEFAULT_STT_MODEL, language="en"),
+        stt=deepgram.STT(model=DEFAULT_STT_MODEL, language="en"),
         llm=baseten.LLM(
             model=DEFAULT_CONVERSATION_LLM_MODEL,
             api_key=baseten_api_key(),

@@ -8,7 +8,7 @@ DEFAULT_FACE_MATCH_THRESHOLD = 0.45
 DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
-DEFAULT_STT_MODEL = "gpt-4o-transcribe"
+DEFAULT_STT_MODEL = "nova-3"
 DEFAULT_CONVERSATION_LLM_MODEL = "zai-org/GLM-5.3"
 DEFAULT_CONVERSATION_LLM_REASONING_EFFORT = "low"
 DEFAULT_TTS_MODEL = "gpt-4o-mini-tts"
@@ -23,4 +23,3 @@ DEFAULT_INITIAL_MESSAGE = (
     "If something's already on your mind we can start there — "
     "otherwise I'll get us going."
 )
-

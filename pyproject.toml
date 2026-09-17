@@ -20,6 +20,7 @@ dependencies = [
     "opencv-python-headless>=4.10.0",
     "livekit>=1.1.18",
     "livekit-plugins-baseten>=1.8.2",
+    "livekit-plugins-deepgram>=1.8.1",
     "livekit-plugins-openai>=1.8.1",
     "livekit-plugins-silero>=1.8.2",
     "livekit-plugins-ai-coustics>=0.3.2",

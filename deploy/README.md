@@ -12,8 +12,8 @@ console mode, using the Pi microphone and speaker. A dedicated virtual terminal
 keeps LiveKit's console runner usable without a login session. It needs the
 network, `BASETEN_API_KEY` at OS/root level (for example `/etc/default/mio`
 or `/etc/environment`), and a `.env` with `LIVEKIT_URL`, `LIVEKIT_API_KEY`,
-`LIVEKIT_API_SECRET`, and `OPENAI_API_KEY`. The unit is still installed if
-those keys are missing; it will fail until they are present.
+`LIVEKIT_API_SECRET`, `DEEPGRAM_API_KEY`, and `OPENAI_API_KEY`. The unit is
+still installed if those keys are missing; it will fail until they are present.
 
 Head and eyes need no network, no SSH session and nobody logged in.
 Conversation waits for `network-online.target`.

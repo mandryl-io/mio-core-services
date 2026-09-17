@@ -1,7 +1,7 @@
 [Unit]
 Description=Mio conversation
-# The local console uses OpenAI STT/TTS, Baseten GLM 5.3, and LiveKit's
-# hosted turn detector, so wait for connectivity rather than GPIO/UART.
+# The local console uses Deepgram STT, OpenAI TTS, Baseten GLM 5.3, and
+# LiveKit's hosted turn detector, so wait for connectivity rather than GPIO/UART.
 After=network-online.target
 Wants=network-online.target
 

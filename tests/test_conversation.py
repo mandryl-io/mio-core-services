@@ -43,7 +43,7 @@ def test_load_system_prompt(tmp_path):
 
 def test_require_env_missing_keys_raise(monkeypatch):
     _clear_required_env(monkeypatch)
-    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+    with pytest.raises(ValueError, match="DEEPGRAM_API_KEY"):
         require_env()
 
 
@@ -120,7 +120,7 @@ def test_create_session_uses_conversation_models(monkeypatch):
             return "fake-vad"
 
     monkeypatch.setenv("BASETEN_API_KEY", "test-baseten-key")
-    monkeypatch.setattr("mio_core_services.conversation.openai.STT", FakeSTT)
+    monkeypatch.setattr("mio_core_services.conversation.deepgram.STT", FakeSTT)
     monkeypatch.setattr("mio_core_services.conversation.baseten.LLM", FakeLLM)
     monkeypatch.setattr("mio_core_services.conversation.openai.TTS", FakeTTS)
     monkeypatch.setattr("mio_core_services.conversation.silero.VAD", FakeVAD)
