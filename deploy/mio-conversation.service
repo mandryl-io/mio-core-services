@@ -1,9 +1,9 @@
 [Unit]
 Description=Mio conversation
-# The local console uses OpenAI and LiveKit's existing hosted turn detector,
-# so wait for connectivity rather than for GPIO or the servo UART.
-After=network-online.target
-Wants=network-online.target
+# Wait for WiFi bootstrap (and then a real network) before talking to
+# OpenAI / LiveKit. GPIO and the servo UART are unrelated.
+After=mio-wifi.service network-online.target
+Wants=mio-wifi.service network-online.target
 
 [Service]
 Type=simple

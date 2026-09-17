@@ -39,9 +39,11 @@ MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
 The pipeline remains unchanged from the experiment: its
 `inference.TurnDetector` still uses LiveKit's hosted inference gateway.
 
-On the Pi, `mio-conversation.service` starts the same console path at boot.
-Stop it before running console manually so two processes do not share the
-audio devices:
+On the Pi, `mio-wifi.service` runs first and either joins saved WiFi or
+raises a setup hotspot. `mio-conversation.service` starts the same console
+path once that has finished and the network is online. Stop conversation
+before running console manually so two processes do not share the audio
+devices:
 
 ```bash
 sudo systemctl stop mio-conversation.service
@@ -51,6 +53,14 @@ make run-conversation-service
 The service starts again on the next boot. To keep it disabled across reboots,
 use `sudo systemctl disable --now mio-conversation.service`; restore it with
 `sudo systemctl enable --now mio-conversation.service`. See
+[deploy/README.md](deploy/README.md).
+
+# WiFi setup
+
+If the Pi has no home network at boot, the eyes fade slowly on and off until
+someone joins **Mio-Setup** (password `miosetup`) and picks a network in the
+phone page at `http://10.42.0.1`. That page lives in [`app/`](app/). Head,
+idle blink, and conversation wait until this finishes. Details are in
 [deploy/README.md](deploy/README.md).
 
 # Tests
@@ -127,10 +137,12 @@ It shares no hardware with the servos, so `mio-head.service` can keep the head
 moving while it runs.
 
 Two white eye LEDs on GPIO23 and GPIO24 (pins 16 and 18, grounds on pin 14)
-idle-blink on boot via `mio-eyes.service`: both stay open, then close together
-for a short human-length blink every few seconds. Timing is in
-`config/blink.yaml`. The older demo patterns (`--mode alternate` / `flashes`)
-are still in `lighting.eyes` if you want them:
+idle-blink on boot via `mio-eyes.service` once WiFi setup has released the
+pins: both stay open, then close together for a short human-length blink
+every few seconds. Timing is in `config/blink.yaml`. While the setup hotspot
+is up, `mio-wifi.service` fades both eyes slowly instead. The older demo
+patterns (`--mode alternate` / `flashes`) are still in `lighting.eyes` if
+you want them:
 
 ```bash
 ~/ledenv/bin/python -m mio_core_services.lighting.idle_blink

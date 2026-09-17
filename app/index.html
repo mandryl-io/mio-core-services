@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4efe6">
+  <title>Mio WiFi</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1c1916;
+      --muted: #5c564e;
+      --card: #fffdf8;
+      --line: #e4ddd2;
+      --accent: #2c6e63;
+      --accent-ink: #fff;
+      --danger: #8b3a2a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      line-height: 1.35;
+    }
+    main {
+      max-width: 28rem;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 650;
+      margin: 0 0 0.4rem;
+    }
+    .lead {
+      font-size: 1.15rem;
+      color: var(--muted);
+      margin: 0 0 1.5rem;
+    }
+    button, input {
+      font: inherit;
+    }
+    .networks {
+      display: grid;
+      gap: 0.75rem;
+      margin: 0 0 1.25rem;
+    }
+    .network {
+      width: 100%;
+      text-align: left;
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 1rem;
+      padding: 1rem 1.1rem;
+      color: var(--ink);
+    }
+    .network[aria-pressed="true"] {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(44, 110, 99, 0.18);
+    }
+    .network strong {
+      display: block;
+      font-size: 1.25rem;
+    }
+    .network span {
+      color: var(--muted);
+      font-size: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 1.1rem;
+      margin: 0 0 0.4rem;
+    }
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      font-size: 1.25rem;
+      padding: 0.9rem 0.95rem;
+      border-radius: 0.85rem;
+      border: 2px solid var(--line);
+      background: var(--card);
+      margin-bottom: 1rem;
+    }
+    .primary {
+      width: 100%;
+      font-size: 1.3rem;
+      font-weight: 650;
+      padding: 1rem;
+      border: 0;
+      border-radius: 1rem;
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+    .primary:disabled {
+      opacity: 0.55;
+    }
+    .ghost {
+      width: 100%;
+      margin-top: 0.75rem;
+      font-size: 1.1rem;
+      padding: 0.85rem;
+      border-radius: 1rem;
+      border: 2px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+    }
+    .status {
+      min-height: 1.5rem;
+      font-size: 1.1rem;
+      margin: 1rem 0 0;
+    }
+    .status.error { color: var(--danger); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mio needs WiFi</h1>
+    <p class="lead">You are on the Mio-Setup network. Pick the home WiFi Mio should use.</p>
+    <div id="list" class="networks"></div>
+    <button class="ghost" id="refresh" type="button">Look again</button>
+    <form id="form" class="hidden">
+      <p id="chosen" class="lead"></p>
+      <div id="password-block">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password">
+      </div>
+      <button class="primary" id="connect" type="submit">Connect Mio</button>
+    </form>
+    <p class="status" id="status" role="status"></p>
+  </main>
+  <script>
+    const list = document.getElementById("list");
+    const form = document.getElementById("form");
+    const chosen = document.getElementById("chosen");
+    const passwordBlock = document.getElementById("password-block");
+    const password = document.getElementById("password");
+    const status = document.getElementById("status");
+    const refresh = document.getElementById("refresh");
+    const connectBtn = document.getElementById("connect");
+    let selected = null;
+
+    function setStatus(text, isError) {
+      status.textContent = text;
+      status.classList.toggle("error", Boolean(isError));
+    }
+
+    function bars(signal) {
+      if (signal >= 70) return "Strong signal";
+      if (signal >= 40) return "OK signal";
+      return "Weak signal";
+    }
+
+    function openForm(network) {
+      selected = network;
+      for (const button of list.querySelectorAll(".network")) {
+        button.setAttribute("aria-pressed", button.dataset.ssid === network.ssid ? "true" : "false");
+      }
+      chosen.textContent = "Network: " + network.ssid;
+      const open = !network.security;
+      passwordBlock.classList.toggle("hidden", open);
+      password.required = !open;
+      password.value = "";
+      form.classList.remove("hidden");
+      if (!open) password.focus();
+    }
+
+    async function loadNetworks() {
+      setStatus("Looking for networks…");
+      try {
+        const response = await fetch("/api/networks", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not list networks.");
+        list.replaceChildren();
+        const networks = data.networks || [];
+        if (!networks.length) {
+          setStatus("No networks yet. Move closer, then look again.");
+          return;
+        }
+        for (const network of networks) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "network";
+          button.dataset.ssid = network.ssid;
+          button.setAttribute("aria-pressed", "false");
+          const name = document.createElement("strong");
+          name.textContent = network.ssid;
+          const meta = document.createElement("span");
+          meta.textContent = bars(network.signal) + (network.security ? " · needs a password" : " · open");
+          button.append(name, meta);
+          button.addEventListener("click", () => openForm(network));
+          list.append(button);
+        }
+        setStatus("Tap a network.");
+      } catch (err) {
+        setStatus(err.message || "Could not reach Mio. Stay on Mio-Setup.", true);
+      }
+    }
+
+    async function pollUntilGone() {
+      for (let i = 0; i < 20; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+          const response = await fetch("/api/status", { cache: "no-store" });
+          const data = await response.json();
+          if (data.mode === "connected") {
+            setStatus("Mio is connected. You can leave Mio-Setup.");
+            return;
+          }
+          if (data.mode === "setup" && data.error) {
+            connectBtn.disabled = false;
+            setStatus(data.error, true);
+            return;
+          }
+        } catch {
+          setStatus("Mio is joining that network. The setup WiFi will disappear.");
+          return;
+        }
+      }
+      connectBtn.disabled = false;
+      setStatus("Still working. If Mio-Setup is gone, it worked.", true);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!selected) return;
+      connectBtn.disabled = true;
+      setStatus("Connecting Mio…");
+      try {
+        const response = await fetch("/api/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ssid: selected.ssid,
+            password: password.value,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not start connecting.");
+        setStatus(data.message || "Joining that network.");
+        await pollUntilGone();
+      } catch (err) {
+        connectBtn.disabled = false;
+        setStatus(err.message || "Could not reach Mio.", true);
+      }
+    });
+
+    refresh.addEventListener("click", loadNetworks);
+    loadNetworks();
+  </script>
+</body>
+</html>
