@@ -14,22 +14,20 @@ from livekit.agents import (
     inference,
     room_io,
 )
-from livekit.plugins import ai_coustics, anthropic, openai
+from livekit.plugins import ai_coustics, anthropic, deepgram
 
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_INITIAL_MESSAGE,
     DEFAULT_STT_MODEL,
-    DEFAULT_TTS_INSTRUCTIONS,
     DEFAULT_TTS_MODEL,
-    DEFAULT_TTS_VOICE,
 )
 
 # NOTE(@dillondesilva): Move this validation to a shared module when another
 # service needs the same startup safety check.
 REQUIRED_ENV_VARS = (
     "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
+    "DEEPGRAM_API_KEY",
     "LIVEKIT_URL",
     "LIVEKIT_API_KEY",
     "LIVEKIT_API_SECRET",
@@ -62,13 +60,9 @@ class Assistant(Agent):
 
 def create_session() -> AgentSession:
     return AgentSession(
-        stt=openai.STT(model=DEFAULT_STT_MODEL, language="en"),
+        stt=deepgram.STT(model=DEFAULT_STT_MODEL, language="en"),
         llm=anthropic.LLM(model=DEFAULT_CONVERSATION_LLM_MODEL),
-        tts=openai.TTS(
-            model=DEFAULT_TTS_MODEL,
-            voice=DEFAULT_TTS_VOICE,
-            instructions=DEFAULT_TTS_INSTRUCTIONS,
-        ),
+        tts=deepgram.TTS(model=DEFAULT_TTS_MODEL),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
         ),

@@ -1,6 +1,6 @@
 [Unit]
 Description=Mio conversation
-# The local console uses OpenAI and LiveKit's existing hosted turn detector,
+# The local console uses Deepgram STT/TTS and LiveKit's hosted turn detector,
 # so wait for connectivity rather than for GPIO or the servo UART.
 After=network-online.target
 Wants=network-online.target

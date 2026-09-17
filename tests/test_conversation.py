@@ -6,9 +6,7 @@ import pytest
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_STT_MODEL,
-    DEFAULT_TTS_INSTRUCTIONS,
     DEFAULT_TTS_MODEL,
-    DEFAULT_TTS_VOICE,
 )
 from mio_core_services.conversation import (
     REQUIRED_ENV_VARS,
@@ -37,7 +35,7 @@ def test_load_system_prompt(tmp_path):
 
 def test_require_env_missing_keys_raise(monkeypatch):
     _clear_required_env(monkeypatch)
-    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+    with pytest.raises(ValueError, match="DEEPGRAM_API_KEY"):
         require_env()
 
 
@@ -76,9 +74,9 @@ def test_create_session_uses_conversation_models(monkeypatch):
         def __init__(self, **kwargs):
             captured["session"] = kwargs
 
-    monkeypatch.setattr("mio_core_services.conversation.openai.STT", FakeSTT)
+    monkeypatch.setattr("mio_core_services.conversation.deepgram.STT", FakeSTT)
     monkeypatch.setattr("mio_core_services.conversation.anthropic.LLM", FakeLLM)
-    monkeypatch.setattr("mio_core_services.conversation.openai.TTS", FakeTTS)
+    monkeypatch.setattr("mio_core_services.conversation.deepgram.TTS", FakeTTS)
     monkeypatch.setattr(
         "mio_core_services.conversation.inference.TurnDetector", Mock
     )
@@ -92,8 +90,6 @@ def test_create_session_uses_conversation_models(monkeypatch):
     assert captured["stt"]["language"] == "en"
     assert captured["llm"]["model"] == DEFAULT_CONVERSATION_LLM_MODEL
     assert captured["tts"]["model"] == DEFAULT_TTS_MODEL
-    assert captured["tts"]["voice"] == DEFAULT_TTS_VOICE
-    assert captured["tts"]["instructions"] == DEFAULT_TTS_INSTRUCTIONS
     assert captured["session"]["stt"].__class__.__name__ == "FakeSTT"
     assert captured["session"]["llm"].__class__.__name__ == "FakeLLM"
     assert captured["session"]["tts"].__class__.__name__ == "FakeTTS"

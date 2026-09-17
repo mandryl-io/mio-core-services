@@ -10,11 +10,11 @@ curl -sSL https://get.livekit.io/cli | bash
 
 # Conversation (LiveKit)
 
-The spoken conversation service is a thin LiveKit STT→LLM→TTS agent. Put these
-in `.env`:
+The spoken conversation service is a thin LiveKit STT→LLM→TTS agent using
+Deepgram Nova-3 STT and Aura-2 TTS. Put these in `.env`:
 
 - `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
+- `DEEPGRAM_API_KEY`
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`

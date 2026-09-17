@@ -11,7 +11,7 @@ units share no hardware — servos on the UART, eyes on GPIO23/24.
 console mode, using the Pi microphone and speaker. A dedicated virtual terminal
 keeps LiveKit's console runner usable without a login session. It needs the
 network and a `.env` with `LIVEKIT_URL`, `LIVEKIT_API_KEY`,
-`LIVEKIT_API_SECRET`, `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`. The unit is
+`LIVEKIT_API_SECRET`, `ANTHROPIC_API_KEY`, and `DEEPGRAM_API_KEY`. The unit is
 still installed if `.env` is missing; it will fail until those keys are present.
 
 Head and eyes need no network, no SSH session and nobody logged in.
