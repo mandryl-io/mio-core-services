@@ -9,12 +9,17 @@ DEFAULT_EMBEDDING_MODEL = "thenlper/gte-small"
 DEFAULT_EMBEDDING_DIMENSIONS = 384
 
 DEFAULT_STT_MODEL = "nova-3"
-DEFAULT_CONVERSATION_LLM_MODEL = "claude-opus-5"
-DEFAULT_TTS_MODEL = "aura-2-vesta-en"
+DEFAULT_CONVERSATION_LLM_MODEL = "zai-org/GLM-5.3"
+DEFAULT_CONVERSATION_LLM_REASONING_EFFORT = "low"
+DEFAULT_TTS_MODEL = "gpt-4o-mini-tts"
+DEFAULT_TTS_VOICE = "marin"
+DEFAULT_TTS_INSTRUCTIONS = (
+    "Speak warmly, gently, and naturally, like a patient friend. "
+    "Use an unhurried conversational pace."
+)
 DEFAULT_BOT_NAME = "Mio"
 DEFAULT_INITIAL_MESSAGE = (
     f"Hi, I'm {DEFAULT_BOT_NAME}. It's good to sit down with you. "
     "If something's already on your mind we can start there — "
     "otherwise I'll get us going."
 )
-

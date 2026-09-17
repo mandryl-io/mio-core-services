@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -133,25 +133,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5f/56/a8120250d128bed162cd73c76d45f6ef9991f3e068f62a8ee060afa3104a/annotated_types-0.8.0.tar.gz", hash = "sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7", size = 15893, upload-time = "2026-07-23T20:16:13.995Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl", hash = "sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0", size = 13427, upload-time = "2026-07-23T20:16:12.938Z" },
-]
-
-[[package]]
-name = "anthropic"
-version = "0.125.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "docstring-parser" },
-    { name = "httpx" },
-    { name = "jiter" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/62/f8/6f0560884b5363848347bd640b6c1d04abc25e7aa61787a232f790c6b60a/anthropic-0.125.0.tar.gz", hash = "sha256:e0cdd336580cb7411c1cdab69f80973e9bf4bff7f8e08141811d46307d45c682", size = 1112593, upload-time = "2026-08-19T22:00:42.837Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/1a/b1bd30cda3790557e8791bec5922a6ec8fabb6fa8b008c76a39cf7be6152/anthropic-0.125.0-py3-none-any.whl", hash = "sha256:3486013602eca76d8b12540764e53654f02cf4951110bca86cf06e67428a9f21", size = 1184067, upload-time = "2026-08-19T22:00:44.596Z" },
 ]
 
 [[package]]
@@ -510,43 +491,43 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-runtime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cufft = [
-    { name = "nvidia-cufft", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufft", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cufile = [
-    { name = "nvidia-cufile", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cufile", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-cupti", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 curand = [
-    { name = "nvidia-curand", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-curand", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cusolver = [
-    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusolver", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cusolver", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 
 [[package]]
@@ -1101,6 +1082,12 @@ wheels = [
 codecs = [
     { name = "numpy" },
 ]
+images = [
+    { name = "pillow" },
+]
+openai = [
+    { name = "livekit-plugins-openai" },
+]
 
 [[package]]
 name = "livekit-api"
@@ -1175,17 +1162,17 @@ wheels = [
 ]
 
 [[package]]
-name = "livekit-plugins-anthropic"
+name = "livekit-plugins-baseten"
 version = "1.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anthropic" },
-    { name = "httpx" },
-    { name = "livekit-agents" },
+    { name = "aiohttp" },
+    { name = "livekit" },
+    { name = "livekit-agents", extra = ["openai"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/e8/ca6e7e18075df5a97f641fe818cd91bb27564eb319ead4a1cd524e2bfcb6/livekit_plugins_anthropic-1.8.2.tar.gz", hash = "sha256:9a338924a8ee924ff00e434c658954882dc64b4e8d638a1b82c1d2a604da3504", size = 9422, upload-time = "2026-09-15T18:13:57.842Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/aa/22c10139cc4f5f8e4b7e9c2a7d503aaeb4aeddc30bf50cd5c120f36ec430/livekit_plugins_baseten-1.8.2.tar.gz", hash = "sha256:240a0d200f4561f32116ec9e263445434f08d4bc222ac8433369dd02a0c91a41", size = 26712, upload-time = "2026-09-15T18:14:01.198Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/66/1bc6d823cb9c4a8bf46d798400cef8905a2045f6019fd2ed76568c72eb0d/livekit_plugins_anthropic-1.8.2-py3-none-any.whl", hash = "sha256:feef753da0bf515411d82eb009b94aafabb46940ce82fd95575a523e004aa7c4", size = 11134, upload-time = "2026-09-15T18:13:56.642Z" },
+    { url = "https://files.pythonhosted.org/packages/13/da/c413eb257786826405f211ca8e64ec28bc3aa2a082e054bfd73c299a3516/livekit_plugins_baseten-1.8.2-py3-none-any.whl", hash = "sha256:afd7cb0ce6a82bd705f407c52d7f3d94d2454e69058f85a56f3b9071e2510c38", size = 34489, upload-time = "2026-09-15T18:14:00.023Z" },
 ]
 
 [[package]]
@@ -1199,6 +1186,33 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/72/dd/c53a710fd71beb1abd3da460074c128453d754856eacd8d664979b6973fb/livekit_plugins_deepgram-1.8.2.tar.gz", hash = "sha256:299302a0ead1fe3d3e8e748076160a80ce223828755907f6d3fa60437d2d6bb3", size = 25831, upload-time = "2026-09-15T18:16:44.08Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ff/cd/9c142fb3e8df5e58f13660f825baebfea80f98b5a296b57f9cebe745625b/livekit_plugins_deepgram-1.8.2-py3-none-any.whl", hash = "sha256:ef6f7002013df8333da6e1d1f724d8279ffa51887c3393a5c0f9d4f09fee5f1e", size = 32726, upload-time = "2026-09-15T18:16:42.939Z" },
+]
+
+[[package]]
+name = "livekit-plugins-openai"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents", extra = ["codecs", "images"] },
+    { name = "openai", extra = ["realtime"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/5c/91330b3419115584013645f3dfd8916acc8f8b3b05122431217f84e25223/livekit_plugins_openai-1.8.2.tar.gz", hash = "sha256:8e0af62d7bd386523ca0747848c607532069a280a5c05e87896a1b80244ad835", size = 71083, upload-time = "2026-09-15T18:31:10.476Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/79/aa5fec5bbb05ff7826704224113beb03421250e66140d3507bfe5ec8f37c/livekit_plugins_openai-1.8.2-py3-none-any.whl", hash = "sha256:28eb89ef4e2827b1270f159c1fe8b05ab98abdecef41a6c92c30956bb721e18a", size = 79524, upload-time = "2026-09-15T18:31:09.031Z" },
+]
+
+[[package]]
+name = "livekit-plugins-silero"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents" },
+    { name = "numpy" },
+    { name = "onnxruntime" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c5/85/aacc9126c355031e47dba19daab0b1db28d38630a5b5bc584b634714c9de/livekit_plugins_silero-1.8.2.tar.gz", hash = "sha256:67e33875bc74190fd724a59517f3df2d79fa1be2b3199d3d388f91aaef12a35d", size = 1955421, upload-time = "2026-09-15T18:31:47.04Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/66/38886afba831e242abd636a683e1c9ccb71b032b9140f9ca784c51228a9a/livekit_plugins_silero-1.8.2-py3-none-any.whl", hash = "sha256:b5f8924347832d59b2e0aa3fc44ad27be03f913a8611797a86abd81014c670be", size = 3903141, upload-time = "2026-09-15T18:31:45.288Z" },
 ]
 
 [[package]]
@@ -1314,8 +1328,10 @@ dependencies = [
     { name = "insightface" },
     { name = "livekit" },
     { name = "livekit-plugins-ai-coustics" },
-    { name = "livekit-plugins-anthropic" },
+    { name = "livekit-plugins-baseten" },
     { name = "livekit-plugins-deepgram" },
+    { name = "livekit-plugins-openai" },
+    { name = "livekit-plugins-silero" },
     { name = "livekit-wakeword", extra = ["listener"] },
     { name = "numpy" },
     { name = "onnxruntime" },
@@ -1336,8 +1352,10 @@ requires-dist = [
     { name = "insightface", specifier = ">=0.7.3,<2" },
     { name = "livekit", specifier = ">=1.1.18" },
     { name = "livekit-plugins-ai-coustics", specifier = ">=0.3.2" },
-    { name = "livekit-plugins-anthropic", specifier = ">=1.8.2" },
+    { name = "livekit-plugins-baseten", specifier = ">=1.8.2" },
     { name = "livekit-plugins-deepgram", specifier = ">=1.8.1" },
+    { name = "livekit-plugins-openai", specifier = ">=1.8.1" },
+    { name = "livekit-plugins-silero", specifier = ">=1.8.2" },
     { name = "livekit-wakeword", extras = ["listener"], specifier = ">=0.2.1" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "onnxruntime", specifier = ">=1.19.0" },
@@ -1853,6 +1871,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d8/f5/e7735f2af272ee179a287911a698b3cbdb59d7a4ac4874571363adf1e4de/openai-2.50.0.tar.gz", hash = "sha256:5128f7caf4a6b01aefd6e7e93efe170a2c3427b8de286b9af5cdff3aa47e02c8", size = 1081965, upload-time = "2026-07-28T22:16:31.674Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/ca/db315b3bb748c26c644a3f85b7d509e774354d6518d47080b1446005ee41/openai-2.50.0-py3-none-any.whl", hash = "sha256:90bdddcc5a2fa529b350fac9c5780d87e5c361dcc6090ab57b0d470b0d7af7fa", size = 1650721, upload-time = "2026-07-28T22:16:29.48Z" },
+]
+
+[package.optional-dependencies]
+realtime = [
+    { name = "websockets" },
 ]
 
 [[package]]
