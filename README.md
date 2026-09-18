@@ -39,6 +39,9 @@ Deepgram Nova-3 STT and OpenAI TTS. Put these in `.env`:
 - `MIO_SYSTEM_PROMPT_PATH` (optional; defaults to `prompts/default.md`)
 - `MEM0_API_KEY` (optional; enables Mem0 long-term memory on each user turn)
 - `MIO_MEMORY_USER_ID` (optional; Mem0 `user_id`, defaults to `mio-local`)
+- `MIO_FIRST_USE` (optional; `true`/`1`/`yes` starts first-use setup until it is completed)
+- `MIO_USER_NAME` (optional; the name of the person this device belongs to)
+- `MIO_SETUP_STATE_PATH` (optional; defaults to `mio-setup-state.json`)
 
 `BASETEN_API_KEY` is read from the process environment. Set it at OS/root
 level (for example `/etc/environment` or `/etc/default/mio`) so it is not
@@ -65,6 +68,14 @@ MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
 
 On a Mac, use the `lk agent console` form so you are not bound to the Pi USB
 device names in `run-conversation-service`.
+
+Set `MIO_FIRST_USE=true` on a new device. Mio introduces herself, learns the
+person's name (and a carer's name if someone is in the room), then runs a
+short Learn Patient conversation about health and wellbeing. Confirmed facts
+are stored in `mio-setup-state.json` and in Mem0 when `MEM0_API_KEY` is set.
+Later starts greet them warmly, ask whether that person is present, and load
+the Learn Patient notes into context. Clear the state file if you need to
+run setup again.
 
 The turn detector still uses LiveKit's hosted inference gateway. Barge-in
 uses local Silero VAD plus adaptive interruption so the person can talk

@@ -166,6 +166,15 @@ def test_opening_turn_asks_llm_to_generate_a_varied_greeting():
     session.say.assert_not_called()
 
 
+def test_opening_turn_can_use_first_use_instructions():
+    session = Mock()
+    start_opening_turn(session, "Introduce yourself as Mio.")
+    session.generate_reply.assert_called_once_with(
+        instructions="Introduce yourself as Mio.",
+        allow_interruptions=True,
+    )
+
+
 def test_greeting_instructions_offer_concrete_things_to_talk_about():
     text = INITIAL_GREETING_INSTRUCTIONS.lower()
     assert "word game" in text
@@ -179,3 +188,4 @@ def test_default_system_prompt_suggests_opening_topics():
     assert "word game" in prompt
     assert "on their mind" in prompt
     assert "you already greeted them" not in prompt
+    assert "first-use setup" in prompt

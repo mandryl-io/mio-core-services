@@ -93,6 +93,17 @@ async def test_mem0_failures_do_not_raise():
 
 
 @pytest.mark.asyncio
+async def test_remember_important_stores_confirmed_facts():
+    client = AsyncMock()
+    memory = Mem0TurnMemory(client=client, user_id="resident-1")
+    await memory.remember_important("The patient's name is Margaret.")
+    client.add.assert_awaited_once_with(
+        [{"role": "user", "content": "The patient's name is Margaret."}],
+        user_id="resident-1",
+    )
+
+
+@pytest.mark.asyncio
 async def test_inject_mem0_turn_adds_system_context():
     client = AsyncMock()
     client.search.return_value = {"results": [{"memory": "Has a son named Tom"}]}
