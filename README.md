@@ -37,6 +37,8 @@ Deepgram Nova-3 STT and OpenAI TTS. Put these in `.env`:
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `MIO_SYSTEM_PROMPT_PATH` (optional; defaults to `prompts/default.md`)
+- `MEM0_API_KEY` (optional; enables Mem0 long-term memory on each user turn)
+- `MIO_MEMORY_USER_ID` (optional; Mem0 `user_id`, defaults to `mio-local`)
 
 `BASETEN_API_KEY` is read from the process environment. Set it at OS/root
 level (for example `/etc/environment` or `/etc/default/mio`) so it is not

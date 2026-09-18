@@ -1,5 +1,6 @@
 MIO_LOCAL_VEC_MEMORY_STORE = "mio-local-vec-memory-store"
 DEFAULT_MIO_CHROMA_PATH = "./mio-chroma"
+DEFAULT_MEMORY_USER_ID = "mio-local"
 
 MIO_FACE_COLLECTION = "mio-face-embeddings"
 DEFAULT_FACE_CHROMA_PATH = "./mio-faces"
