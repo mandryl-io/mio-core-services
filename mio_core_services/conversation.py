@@ -26,6 +26,7 @@ from mio_core_services.constants import (
     DEFAULT_TTS_VOICE,
     INITIAL_GREETING_INSTRUCTIONS,
 )
+from mio_core_services.memory.mem0 import Mem0TurnMemory, inject_mem0_turn
 
 # NOTE(@dillondesilva): Move this validation to a shared module when another
 # service needs the same startup safety check.
@@ -101,13 +102,24 @@ def require_env() -> None:
 
 
 class Assistant(Agent):
-    def __init__(self, prompt_path: Path) -> None:
+    def __init__(
+        self,
+        prompt_path: Path,
+        memory: Mem0TurnMemory | None = None,
+    ) -> None:
         super().__init__(
             instructions=load_system_prompt(prompt_path),
             turn_handling=TurnHandlingOptions(
                 interruption={"enabled": True, "mode": "adaptive"},
             ),
         )
+        self._memory = memory if memory is not None else Mem0TurnMemory.from_env()
+
+    async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
+        text = getattr(new_message, "text_content", None) or ""
+        if await inject_mem0_turn(self._memory, turn_ctx, text):
+            await self.update_chat_ctx(turn_ctx)
+        await super().on_user_turn_completed(turn_ctx, new_message)
 
 
 def create_session() -> AgentSession:

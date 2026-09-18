@@ -27,6 +27,9 @@ dependencies = [
     "livekit-wakeword[listener]>=0.2.1",
 ]
 
+[project.optional-dependencies]
+mem0 = ["mem0ai>=1.0.0"]
+
 [tool.pytest.ini_options]
 # Keep collection off the package; firmware CLIs are not test modules.
 testpaths = ["tests"]
