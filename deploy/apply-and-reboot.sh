@@ -53,7 +53,19 @@ echo "== 4. Write and verify the hard travel limits =="
 "$PY" -m mio_core_services.firmware.calibration.apply_limits --verify
 
 echo
-echo "== 5. Install and enable the boot services =="
+echo "== 5. Mark this device for Mio first-use setup =="
+# systemd loads /etc/default/mio for conversation. Upsert so a fresh apply
+# walks through setup, without wiping BASETEN_API_KEY or other host keys.
+MIO_DEFAULTS=/etc/default/mio
+if sudo test -f "$MIO_DEFAULTS" && sudo grep -qE '^[[:space:]]*(export[[:space:]]+)?MIO_FIRST_USE=' "$MIO_DEFAULTS"; then
+  sudo sed -i -E 's/^[[:space:]]*(export[[:space:]]+)?MIO_FIRST_USE=.*/MIO_FIRST_USE=true/' "$MIO_DEFAULTS"
+else
+  printf '\nMIO_FIRST_USE=true\n' | sudo tee -a "$MIO_DEFAULTS" >/dev/null
+fi
+echo "Set MIO_FIRST_USE=true in $MIO_DEFAULTS"
+
+echo
+echo "== 6. Install and enable the boot services =="
 # Recopy from the repo so a stale installed unit (e.g. the pre-runtime
 # firmware.idle_motion path) is overwritten before the reboot.
 sudo cp deploy/mio-head.service deploy/mio-eyes.service deploy/mio-conversation.service /etc/systemd/system/
@@ -62,7 +74,7 @@ sudo systemctl enable mio-head.service mio-eyes.service mio-conversation.service
 systemctl cat mio-head.service mio-eyes.service mio-conversation.service | grep ExecStart
 
 echo
-echo "== 6. Rebooting =="
+echo "== 7. Rebooting =="
 echo "On boot the head centres slowly, then idles; the eyes blink with it; conversation listens on the mic."
 echo "Watch it with:  journalctl -u mio-head.service -u mio-eyes.service -u mio-conversation.service -f"
 sleep 3

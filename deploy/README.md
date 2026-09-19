@@ -35,8 +35,10 @@ bash deploy/apply-and-reboot.sh
 
 Stops anything on the bus, the eyes, or the conversation mic; pulls; syncs
 the venv; downloads LiveKit local files; restores the reviewed register
-baseline on both servos; writes and verifies the hard travel limits; enables
-all three boot services; and reboots.
+baseline on both servos; writes and verifies the hard travel limits; sets
+`MIO_FIRST_USE=true` in `/etc/default/mio`; enables all three boot services;
+and reboots. After setup finishes, Mio skips first-use even if that flag
+stays true.
 
 ## Install manually
 

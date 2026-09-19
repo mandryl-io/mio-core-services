@@ -69,7 +69,9 @@ MIO_SYSTEM_PROMPT_PATH=prompts/default.md \
 On a Mac, use the `lk agent console` form so you are not bound to the Pi USB
 device names in `run-conversation-service`.
 
-Set `MIO_FIRST_USE=true` on a new device. Mio introduces herself, learns the
+`deploy/apply-and-reboot.sh` writes `MIO_FIRST_USE=true` into `/etc/default/mio`
+so a freshly applied device starts first-use setup. You can also set
+`MIO_FIRST_USE=true` by hand. Mio introduces herself, learns the
 person's name (and a carer's name if someone is in the room), then runs a
 short Learn Patient conversation about health and wellbeing. Confirmed facts
 are stored in `mio-setup-state.json` and in Mem0 when `MEM0_API_KEY` is set.
