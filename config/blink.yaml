@@ -17,7 +17,7 @@ blink_spread: 0.032
 blink_min: 0.12
 blink_max: 0.40
 
-open_mean: 7.0
-open_spread: 2.4
-open_min: 3.5
-open_max: 12.0
+open_mean: 3.0
+open_spread: 2.0
+open_min: 1.0
+open_max: 5.0
