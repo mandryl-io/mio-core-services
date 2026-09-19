@@ -2,7 +2,7 @@
 
 ALSA_CONFIG_DIR ?= /usr/share/alsa
 ALSA_CONFIG_PATH ?= /usr/share/alsa/alsa.conf
-MIO_AUDIO_INPUT ?= USB PnP Sound Device: Audio (plughw:2,0)
+MIO_AUDIO_INPUT ?= USB PnP Sound Device
 MIO_AUDIO_OUTPUT ?= UACDemoV1.0
 MIO_SYSTEM_PROMPT_PATH ?= prompts/default.md
 PA_ALSA_PLUGHW ?= 1
