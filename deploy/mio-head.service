@@ -1,10 +1,9 @@
 [Unit]
 Description=Mio head motion
-# The bus servos hang off the GPIO UART, so wait for the device rather than
-# for the network. This deliberately has no network dependency: it must come
-# up with no wifi, no SSH and nobody logged in.
-After=dev-ttyAMA0.device
-Wants=dev-ttyAMA0.device
+# Wait for WiFi bootstrap so the setup hotspot (and its eye fade) finish
+# before the head starts moving. Then wait for the servo UART.
+After=mio-wifi.service dev-ttyAMA0.device
+Wants=mio-wifi.service dev-ttyAMA0.device
 
 [Service]
 Type=simple

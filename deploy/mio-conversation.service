@@ -1,9 +1,9 @@
 [Unit]
 Description=Mio conversation
-# The local console uses Deepgram STT, OpenAI TTS, Baseten GLM 5.3, and
-# LiveKit's hosted turn detector, so wait for connectivity rather than GPIO/UART.
-After=network-online.target
-Wants=network-online.target
+# Wait for WiFi bootstrap (and then a real network) before talking to
+# Deepgram / OpenAI / Baseten / LiveKit. GPIO and the servo UART are unrelated.
+After=mio-wifi.service network-online.target
+Wants=mio-wifi.service network-online.target
 
 [Service]
 Type=simple

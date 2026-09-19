@@ -29,3 +29,19 @@ INITIAL_GREETING_INSTRUCTIONS = (
     "trivia, or talking about family, music, or a favourite memory. Invite "
     "them to pick one or to start somewhere else."
 )
+
+WIFI_DEVICE = "wlan0"
+WIFI_SETUP_PORT = 80
+WIFI_HOTSPOT_SSID = "Mio-Setup"
+WIFI_HOTSPOT_PASSWORD = "miosetup"
+WIFI_HOTSPOT_CONNECTION = "mio-setup"
+WIFI_HOTSPOT_GATEWAY = "10.42.0.1"
+WIFI_CONNECT_WAIT = 20.0
+WIFI_RETRY_SLEEP = 2.0
+WIFI_HOTSPOT_RETRY = 3.0
+WIFI_FADE_PERIOD = 3.0
+WIFI_FADE_STEP = 0.02
+WIFI_JOIN_WAIT = 15.0
+WIFI_JOIN_POLL = 1.0
+WIFI_SETUP_POLL = 0.4
+WIFI_FADE_JOIN_TIMEOUT = 1.0
