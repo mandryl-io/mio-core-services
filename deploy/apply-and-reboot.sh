@@ -18,6 +18,7 @@ fi
 
 echo "== 1. Stop anything already driving the bus, the eyes, WiFi setup, or the conversation mic =="
 sudo systemctl stop mio-wifi.service mio-head.service mio-eyes.service mio-conversation.service 2>/dev/null || true
+sudo systemctl disable --now mio-conversation.service 2>/dev/null || true
 pkill -f "mio_core_services.wifi" 2>/dev/null || true
 pkill -f "mio_core_services.firmware" 2>/dev/null || true
 pkill -f "mio_core_services.lighting" 2>/dev/null || true
@@ -71,12 +72,14 @@ echo "== 6. Install and enable the boot services =="
 # firmware.idle_motion path) is overwritten before the reboot.
 sudo cp deploy/mio-wifi.service deploy/mio-head.service deploy/mio-eyes.service deploy/mio-conversation.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable mio-wifi.service mio-head.service mio-eyes.service mio-conversation.service
-systemctl cat mio-wifi.service mio-head.service mio-eyes.service mio-conversation.service | grep ExecStart
+sudo systemctl enable mio-wifi.service mio-head.service mio-eyes.service
+sudo systemctl disable --now mio-conversation.service 2>/dev/null || true
+systemctl cat mio-wifi.service mio-head.service mio-eyes.service | grep ExecStart
+echo "Conversation is installed but disabled; start it by hand with make run-conversation-service"
 
 echo
 echo "== 7. Rebooting =="
-echo "On boot, WiFi setup runs first. If the Pi is already online the head, eyes, and conversation start; if not, the eyes fade until a phone joins Mio-Setup and picks a network."
-echo "Watch it with:  journalctl -u mio-wifi.service -u mio-head.service -u mio-eyes.service -u mio-conversation.service -f"
+echo "On boot, WiFi setup runs first. If the Pi is already online the head and eyes start; if not, the eyes fade until a phone joins Mio-Setup and picks a network. Conversation does not start on boot."
+echo "Watch it with:  journalctl -u mio-wifi.service -u mio-head.service -u mio-eyes.service -f"
 sleep 3
 sudo reboot

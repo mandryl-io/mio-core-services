@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from collections.abc import MutableMapping
 from pathlib import Path
@@ -7,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=False)
 
-from livekit import agents
+from livekit import agents, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -19,6 +20,8 @@ from livekit.agents import (
     inference,
     room_io,
 )
+from livekit.agents.utils.audio import silence_frame_like
+from livekit.agents.voice.io import AudioInput
 from livekit.plugins import ai_coustics, baseten, deepgram, openai, silero
 
 from mio_core_services.constants import (
@@ -58,7 +61,13 @@ REQUIRED_ENV_VARS = (
 MIC_UNMUTE_HOLD_S = 0.5
 # Wait long enough after a pause that slower speakers keep their turn.
 USER_TURN_MIN_ENDPOINTING_S = 1.5
-USER_TURN_MAX_ENDPOINTING_S = 6.0
+USER_TURN_MAX_ENDPOINTING_S = 3.5
+NO_BARGE_IN = {
+    "enabled": False,
+    "resume_false_interruption": False,
+}
+
+logger = logging.getLogger("mio.conversation")
 
 # systemd does not load /etc/environment. If the key is set at OS/root
 # level, pick it up from these files when the process env is empty.
@@ -146,7 +155,7 @@ class Assistant(Agent):
                 load_prompt=load_system_prompt,
             ),
             turn_handling=TurnHandlingOptions(
-                interruption={"enabled": False},
+                interruption=NO_BARGE_IN,
             ),
         )
 
@@ -272,8 +281,9 @@ def create_session() -> AgentSession:
                 "min_delay": USER_TURN_MIN_ENDPOINTING_S,
                 "max_delay": USER_TURN_MAX_ENDPOINTING_S,
             },
-            interruption={"enabled": False},
+            interruption=NO_BARGE_IN,
         ),
+        allow_interruptions=False,
     )
 
 
@@ -287,6 +297,31 @@ def start_opening_turn(
     )
 
 
+class _GatedMicInput(AudioInput):
+    """Replace mic audio with silence while closed so STT/VAD stay alive."""
+
+    def __init__(self, source: AudioInput) -> None:
+        super().__init__(label="gated-mic", source=source)
+        self.open = True
+
+    async def __anext__(self) -> rtc.AudioFrame:
+        assert self.source is not None
+        frame = await self.source.__anext__()
+        if self.open:
+            return frame
+        return silence_frame_like(frame)
+
+
+def wrap_session_mic(session: AgentSession, *, open: bool = False) -> _GatedMicInput | None:
+    audio = session.input.audio
+    if audio is None or isinstance(audio, _GatedMicInput):
+        return audio if isinstance(audio, _GatedMicInput) else None
+    gated = _GatedMicInput(audio)
+    gated.open = open
+    session.input.audio = gated
+    return gated
+
+
 def bind_mic_mute_while_speaking(session: AgentSession) -> None:
     unmute_task: asyncio.Task[None] | None = None
 
@@ -296,21 +331,43 @@ def bind_mic_mute_while_speaking(session: AgentSession) -> None:
             unmute_task.cancel()
         unmute_task = None
 
+    def mute_mic() -> None:
+        cancel_pending_unmute()
+        if session.input.audio_enabled:
+            logger.info("muting conversation mic")
+        session.input.set_audio_enabled(False)
+        gated = getattr(session.input, "audio", None)
+        if isinstance(gated, _GatedMicInput):
+            gated.open = False
+
     async def unmute_after_hold() -> None:
         await asyncio.sleep(MIC_UNMUTE_HOLD_S)
+        logger.info("unmuting conversation mic")
         session.input.set_audio_enabled(True)
+        gated = getattr(session.input, "audio", None)
+        if isinstance(gated, _GatedMicInput):
+            gated.open = True
+
+    def schedule_unmute() -> None:
+        nonlocal unmute_task
+        cancel_pending_unmute()
+        unmute_task = asyncio.create_task(unmute_after_hold())
+
+    @session.on("speech_created")
+    def on_speech_created(_ev) -> None:
+        # Mute before TTS reaches the speaker; waiting for "speaking" is too late
+        # and speaker echo pauses playout.
+        mute_mic()
 
     @session.on("agent_state_changed")
     def on_agent_state_changed(ev: AgentStateChangedEvent) -> None:
-        nonlocal unmute_task
         if ev.new_state == "speaking":
-            cancel_pending_unmute()
-            session.input.set_audio_enabled(False)
+            mute_mic()
             return
-        if ev.old_state != "speaking":
-            return
-        cancel_pending_unmute()
-        unmute_task = asyncio.create_task(unmute_after_hold())
+        if ev.new_state == "listening":
+            schedule_unmute()
+
+    mute_mic()
 
 
 server = AgentServer()
@@ -334,6 +391,7 @@ async def mio_conversation(ctx: agents.JobContext):
             ),
         ),
     )
+    wrap_session_mic(session, open=False)
     await start_opening_turn(
         session,
         opening_turn_instructions(

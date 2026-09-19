@@ -6,6 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from livekit import rtc
+
 from mio_core_services.constants import (
     DEFAULT_CONVERSATION_LLM_MODEL,
     DEFAULT_CONVERSATION_LLM_REASONING_EFFORT,
@@ -19,6 +21,7 @@ from mio_core_services.conversation import (
     REQUIRED_ENV_VARS,
     USER_TURN_MAX_ENDPOINTING_S,
     USER_TURN_MIN_ENDPOINTING_S,
+    _GatedMicInput,
     apply_os_level_baseten_api_key,
     bind_mic_mute_while_speaking,
     create_session,
@@ -157,9 +160,11 @@ def test_create_session_uses_conversation_models(monkeypatch):
     assert captured["session"]["vad"] == "fake-vad"
     turn_handling = captured["session"]["turn_handling"]
     assert turn_handling["interruption"]["enabled"] is False
+    assert turn_handling["interruption"]["resume_false_interruption"] is False
     assert turn_handling["endpointing"]["mode"] == "fixed"
     assert turn_handling["endpointing"]["min_delay"] == USER_TURN_MIN_ENDPOINTING_S
-    assert turn_handling["endpointing"]["max_delay"] == USER_TURN_MAX_ENDPOINTING_S
+    assert turn_handling["endpointing"]["max_delay"] == 3.5
+    assert captured["session"]["allow_interruptions"] is False
     assert captured["vad"] is True
 
 
@@ -220,15 +225,22 @@ class _FakeSession:
 
 
 @pytest.mark.asyncio
-async def test_mic_mutes_while_agent_speaks_then_unmutes_after_hold(monkeypatch):
+async def test_mic_starts_muted_and_unmutes_only_when_listening(monkeypatch):
     monkeypatch.setattr(
         "mio_core_services.conversation.MIC_UNMUTE_HOLD_S", 0.01
     )
     session = _FakeSession()
     bind_mic_mute_while_speaking(session)
-    on_state = session.handlers["agent_state_changed"]
+    assert session.input.audio_enabled is False
 
-    on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
+    on_state = session.handlers["agent_state_changed"]
+    on_speech = session.handlers["speech_created"]
+    on_speech(SimpleNamespace())
+    assert session.input.audio_enabled is False
+
+    on_state(SimpleNamespace(old_state="listening", new_state="thinking"))
+    assert session.input.audio_enabled is False
+    on_state(SimpleNamespace(old_state="thinking", new_state="speaking"))
     assert session.input.audio_enabled is False
 
     on_state(SimpleNamespace(old_state="speaking", new_state="listening"))
@@ -248,8 +260,44 @@ async def test_mic_stays_muted_if_agent_starts_speaking_during_unmute_hold(
     bind_mic_mute_while_speaking(session)
     on_state = session.handlers["agent_state_changed"]
 
-    on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
     on_state(SimpleNamespace(old_state="speaking", new_state="listening"))
     on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
     await asyncio.sleep(0.08)
     assert session.input.audio_enabled is False
+
+
+class _FrameSource:
+    def __init__(self, frames: list[rtc.AudioFrame]) -> None:
+        self.frames = list(frames)
+
+    async def __anext__(self) -> rtc.AudioFrame:
+        if not self.frames:
+            raise StopAsyncIteration
+        return self.frames.pop(0)
+
+
+def _pcm_frame(fill: int) -> rtc.AudioFrame:
+    return rtc.AudioFrame(
+        data=bytes([fill, 0]) * 160,
+        sample_rate=16000,
+        num_channels=1,
+        samples_per_channel=160,
+    )
+
+
+@pytest.mark.asyncio
+async def test_gated_mic_sends_silence_while_closed():
+    loud = _pcm_frame(0x7F)
+    gated = _GatedMicInput(_FrameSource([loud]))  # type: ignore[arg-type]
+    gated.open = False
+    silent = await gated.__anext__()
+    assert bytes(silent.data) == b"\x00\x00" * 160
+    assert silent.sample_rate == 16000
+
+
+@pytest.mark.asyncio
+async def test_gated_mic_forwards_frames_while_open():
+    loud = _pcm_frame(0x7F)
+    gated = _GatedMicInput(_FrameSource([loud]))  # type: ignore[arg-type]
+    gated.open = True
+    assert await gated.__anext__() is loud
