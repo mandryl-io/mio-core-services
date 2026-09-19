@@ -65,6 +65,12 @@ class Mem0TurnMemory:
         return self._user_id
 
     async def remember_user_message(self, text: str) -> None:
+        await self._add_memory(text, "Failed to store user message in Mem0")
+
+    async def remember_important(self, text: str) -> None:
+        await self._add_memory(text, "Failed to store important fact in Mem0")
+
+    async def _add_memory(self, text: str, warning: str) -> None:
         if self._client is None or not text.strip():
             return
         try:
@@ -73,9 +79,7 @@ class Mem0TurnMemory:
                 user_id=self._user_id,
             )
         except Exception:
-            logger.warning(
-                "Failed to store user message in Mem0", exc_info=True
-            )
+            logger.warning(warning, exc_info=True)
 
     async def recall_context(self, query: str) -> str | None:
         if self._client is None or not query.strip():

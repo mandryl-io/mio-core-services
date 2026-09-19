@@ -11,7 +11,9 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    RunContext,
     TurnHandlingOptions,
+    function_tool,
     inference,
     room_io,
 )
@@ -25,6 +27,17 @@ from mio_core_services.constants import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
     INITIAL_GREETING_INSTRUCTIONS,
+)
+from mio_core_services.first_use import (
+    FirstUseGuide,
+    PATIENT_PROFILE_QUERY,
+    SetupStore,
+    agent_instructions,
+    format_setup_context,
+    is_first_use,
+    merge_startup_context,
+    opening_turn_instructions,
+    patient_name_for_device,
 )
 from mio_core_services.memory.mem0 import Mem0TurnMemory, inject_mem0_turn
 
@@ -106,20 +119,128 @@ class Assistant(Agent):
         self,
         prompt_path: Path,
         memory: Mem0TurnMemory | None = None,
+        setup_store: SetupStore | None = None,
+        first_use: bool | None = None,
     ) -> None:
+        self._memory = memory if memory is not None else Mem0TurnMemory.from_env()
+        store = setup_store if setup_store is not None else SetupStore.from_env()
+        self._guide = FirstUseGuide(store, self._memory)
+        self._first_use = (
+            is_first_use(state=self._guide.state)
+            if first_use is None
+            else first_use
+        )
         super().__init__(
-            instructions=load_system_prompt(prompt_path),
+            instructions=agent_instructions(
+                prompt_path,
+                first_use=self._first_use,
+                state=self._guide.state,
+                load_prompt=load_system_prompt,
+            ),
             turn_handling=TurnHandlingOptions(
                 interruption={"enabled": True, "mode": "adaptive"},
             ),
         )
-        self._memory = memory if memory is not None else Mem0TurnMemory.from_env()
+
+    @property
+    def first_use(self) -> bool:
+        return self._first_use
+
+    @property
+    def setup_state(self):
+        return self._guide.state
+
+    async def on_enter(self) -> None:
+        if self._first_use:
+            return
+        recalled = await self._memory.recall_context(PATIENT_PROFILE_QUERY)
+        context = merge_startup_context(
+            format_setup_context(self._guide.state),
+            recalled,
+        )
+        if not context:
+            return
+        chat_ctx = self.chat_ctx.copy()
+        chat_ctx.add_message(role="system", content=context)
+        await self.update_chat_ctx(chat_ctx)
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         text = getattr(new_message, "text_content", None) or ""
         if await inject_mem0_turn(self._memory, turn_ctx, text):
             await self.update_chat_ctx(turn_ctx)
         await super().on_user_turn_completed(turn_ctx, new_message)
+
+
+class FirstUseAssistant(Assistant):
+    @function_tool()
+    async def save_patient_name(self, context: RunContext, name: str) -> str:
+        """Save the confirmed name of the person this Mio device is for.
+
+        Args:
+            name: The name after you have clarified it with them.
+        """
+        return await self._guide.save_patient_name(name)
+
+    @function_tool()
+    async def save_carer_name(self, context: RunContext, name: str) -> str:
+        """Save the confirmed name of a carer present in the room.
+
+        Args:
+            name: The carer's name, not the patient's name.
+        """
+        return await self._guide.save_carer_name(name)
+
+    @function_tool()
+    async def save_patient_notes(
+        self,
+        context: RunContext,
+        dementia: str | None = None,
+        lifestyle: str | None = None,
+        interests_and_hobbies: str | None = None,
+        daily_exercise: str | None = None,
+        mobility: str | None = None,
+        mio_preferences: str | None = None,
+    ) -> str:
+        """Save what you have learned in the Learn Patient questions.
+
+        Args:
+            dementia: Whether they have dementia, in their own words.
+            lifestyle: A little about how they spend their days.
+            interests_and_hobbies: Interests and hobbies.
+            daily_exercise: How often they exercise in a day.
+            mobility: Walker, other mobility support, or mobility issues.
+            mio_preferences: Anything specific they would like Mio to do.
+        """
+        return await self._guide.save_patient_notes(
+            dementia=dementia,
+            lifestyle=lifestyle,
+            interests_and_hobbies=interests_and_hobbies,
+            daily_exercise=daily_exercise,
+            mobility=mobility,
+            mio_preferences=mio_preferences,
+        )
+
+    @function_tool()
+    async def complete_first_use_setup(self, context: RunContext) -> str:
+        """Call this after Learn Patient is finished so later starts skip setup."""
+        return await self._guide.complete_setup()
+
+
+def create_assistant(
+    prompt_path: Path,
+    memory: Mem0TurnMemory | None = None,
+    setup_store: SetupStore | None = None,
+) -> Assistant:
+    store = setup_store if setup_store is not None else SetupStore.from_env()
+    memory = memory if memory is not None else Mem0TurnMemory.from_env()
+    state = store.load()
+    agent_cls = FirstUseAssistant if is_first_use(state=state) else Assistant
+    return agent_cls(
+        prompt_path,
+        memory=memory,
+        setup_store=store,
+        first_use=is_first_use(state=state),
+    )
 
 
 def create_session() -> AgentSession:
@@ -148,9 +269,12 @@ def create_session() -> AgentSession:
         )
 
 
-def start_opening_turn(session: AgentSession):
+def start_opening_turn(
+    session: AgentSession,
+    instructions: str | None = None,
+):
     return session.generate_reply(
-        instructions=INITIAL_GREETING_INSTRUCTIONS,
+        instructions=instructions or INITIAL_GREETING_INSTRUCTIONS,
         allow_interruptions=True,
     )
 
@@ -161,10 +285,12 @@ server = AgentServer()
 @server.rtc_session(agent_name="mio-conversation")
 async def mio_conversation(ctx: agents.JobContext):
     require_env()
+    memory = Mem0TurnMemory.from_env()
+    agent = create_assistant(system_prompt_path(), memory=memory)
     session = create_session()
     await session.start(
         room=ctx.room,
-        agent=Assistant(system_prompt_path()),
+        agent=agent,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
                 noise_cancellation=ai_coustics.audio_enhancement(
@@ -173,4 +299,11 @@ async def mio_conversation(ctx: agents.JobContext):
             ),
         ),
     )
-    await start_opening_turn(session)
+    await start_opening_turn(
+        session,
+        opening_turn_instructions(
+            first_use=agent.first_use,
+            patient_name=patient_name_for_device(agent.setup_state),
+            setup_completed=agent.setup_state.completed,
+        ),
+    )

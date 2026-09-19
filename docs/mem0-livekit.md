@@ -78,6 +78,8 @@ Mio is built for older people in a home, including health and family detail
    both sides (the guide only stores the user line).
 3. On `on_enter`, search a greeting query ("who is this person") so the
    opener can use a known name without waiting for the first user turn.
+   First-use setup also stores the confirmed patient and carer names, plus
+   Learn Patient notes, and injects them on later starts.
 4. Decide hosted Mem0 vs local `Memory()` before treating this as default
    on-device behaviour.
 
