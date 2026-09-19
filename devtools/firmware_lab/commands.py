@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from mio_core_services.firmware.runtime.sts3215 import DEFAULT_BAUDRATE, DEFAULT_PORT
-
 from devtools.firmware_lab.catalog import (
     ZEROS_FILE,
     Flag,
@@ -15,6 +13,7 @@ from devtools.firmware_lab.catalog import (
     Workflow,
     get_tool,
 )
+from mio_core_services.firmware.runtime.sts3215 import DEFAULT_BAUDRATE, DEFAULT_PORT
 
 UV_PREFIX = ("uv", "run", "--frozen", "python", "-m")
 

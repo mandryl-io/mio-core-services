@@ -26,7 +26,7 @@ def _json_body(handler: BaseHTTPRequestHandler) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
-        raise ValueError("JSON body must be an object")
+        raise TypeError("JSON body must be an object")
     return payload
 
 
@@ -67,7 +67,7 @@ class FirmwareLabHandler(BaseHTTPRequestHandler):
         }
         self._send(200, path.read_bytes(), types.get(suffix, "application/octet-stream"))
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path in {"/", "/index.html"}:
             self._send_static("index.html")
@@ -80,11 +80,11 @@ class FirmwareLabHandler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"error": "Not found"})
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
             payload = _json_body(self)
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             self._send_json(400, {"error": str(exc)})
             return
         values = payload.get("values") or {}

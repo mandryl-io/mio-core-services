@@ -1,13 +1,12 @@
 import json
 from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from threading import Thread
 from types import SimpleNamespace
 
 import pytest
-from http.server import ThreadingHTTPServer
 
 from devtools.firmware_lab.app import FirmwareLabHandler
-
 from devtools.firmware_lab.catalog import TOOLS, WORKFLOWS, get_tool, get_workflow
 from devtools.firmware_lab.commands import argv_for_step, build_argv, command_line
 from devtools.firmware_lab.runner import ALLOWED_MODULES, run_argv_allowed, run_tool
