@@ -29,7 +29,9 @@ dependencies = [
 
 [tool.pytest.ini_options]
 # Keep collection off the package; firmware CLIs are not test modules.
+# pythonpath includes the repo root so the experimental devtools package imports.
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mio firmware lab</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">devtools · experimental</p>
+        <h1>Firmware lab</h1>
+        <p class="lede">
+          Walk the scripts in <code>mio_core_services/firmware</code> as workflows.
+          Non-TTY steps can run on this machine. Arrow-key tools print a command for
+          <code>ssh -t</code>.
+        </p>
+      </div>
+      <form class="shared" id="shared-form">
+        <label>Port <input name="port" id="port" spellcheck="false" /></label>
+        <label>Baud <input name="baudrate" id="baudrate" inputmode="numeric" /></label>
+        <label>Zeros file <input name="zeros" id="zeros" spellcheck="false" /></label>
+      </form>
+    </header>
+    <main>
+      <nav class="rail" id="rail" aria-label="Workflows"></nav>
+      <section class="stage" id="stage">
+        <p class="placeholder">Choose a workflow.</p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

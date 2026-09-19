@@ -1,0 +1,273 @@
+:root {
+  color-scheme: dark;
+  --bg: #12110f;
+  --panel: #1c1a17;
+  --ink: #f3eee6;
+  --muted: #b7aea0;
+  --line: #3a342c;
+  --accent: #e0a045;
+  --danger: #d36b4e;
+  --ok: #8fba7a;
+  --mono: "IBM Plex Mono", "ui-monospace", "SFMono-Regular", menlo, monospace;
+  --sans: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+code,
+pre,
+button,
+input,
+select,
+textarea {
+  font-family: var(--mono);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #1a1815, var(--bg));
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-family: var(--mono);
+}
+
+h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted);
+  max-width: 42rem;
+  line-height: 1.45;
+}
+
+.shared {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+input,
+select {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  min-height: calc(100vh - 8rem);
+}
+
+.rail {
+  border-right: 1px solid var(--line);
+  padding: 0.75rem;
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+}
+
+.rail button {
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.65rem 0.7rem;
+  cursor: pointer;
+}
+
+.rail button:hover,
+.rail button.active {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.rail button span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 0.2rem;
+  font-family: var(--sans);
+}
+
+.stage {
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+.placeholder {
+  color: var(--muted);
+}
+
+.banner {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.banner p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.caution {
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+.params {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.step {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem 1rem;
+  margin-bottom: 0.85rem;
+  background: #161410;
+}
+
+.step h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.45rem 0;
+}
+
+.tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  color: var(--muted);
+}
+
+.tag.tty {
+  color: var(--accent);
+  border-color: #6d4e22;
+}
+
+.tag.move {
+  color: var(--danger);
+  border-color: #6a3a2d;
+}
+
+.command {
+  background: #0d0c0a;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.7rem 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.6rem 0;
+  font-size: 0.78rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+button.act {
+  background: var(--accent);
+  color: #1a140c;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.act.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+button.act:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.log {
+  margin: 0.7rem 0 0;
+  background: #0d0c0a;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  min-height: 2.5rem;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  color: #d7d0c4;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.err {
+  color: var(--danger);
+}
+
+@media (max-width: 860px) {
+  .top,
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    grid-auto-flow: column;
+    overflow-x: auto;
+  }
+}

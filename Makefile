@@ -1,4 +1,4 @@
-.PHONY: run-conversation-service download-files setup-dev-osx
+.PHONY: run-conversation-service download-files setup-dev-osx run-firmware-lab
 
 ALSA_CONFIG_DIR ?= /usr/share/alsa
 ALSA_CONFIG_PATH ?= /usr/share/alsa/alsa.conf
@@ -16,6 +16,9 @@ run-conversation-service:
 
 download-files:
 	uv run python -m livekit.agents download-files
+
+run-firmware-lab:
+	uv run --frozen python -m devtools.firmware_lab
 
 setup-dev-osx:
 	@if [ "$$(uname -s)" != "Darwin" ]; then \
