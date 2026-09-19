@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import MutableMapping
 from pathlib import Path
@@ -11,6 +12,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AgentStateChangedEvent,
     RunContext,
     TurnHandlingOptions,
     function_tool,
@@ -51,6 +53,12 @@ REQUIRED_ENV_VARS = (
     "LIVEKIT_API_KEY",
     "LIVEKIT_API_SECRET",
 )
+
+# Keep the mic off until speaker echo from TTS has died away.
+MIC_UNMUTE_HOLD_S = 0.5
+# Wait long enough after a pause that slower speakers keep their turn.
+USER_TURN_MIN_ENDPOINTING_S = 1.5
+USER_TURN_MAX_ENDPOINTING_S = 6.0
 
 # systemd does not load /etc/environment. If the key is set at OS/root
 # level, pick it up from these files when the process env is empty.
@@ -138,7 +146,7 @@ class Assistant(Agent):
                 load_prompt=load_system_prompt,
             ),
             turn_handling=TurnHandlingOptions(
-                interruption={"enabled": True, "mode": "adaptive"},
+                interruption={"enabled": False},
             ),
         )
 
@@ -259,14 +267,14 @@ def create_session() -> AgentSession:
         vad=silero.VAD.load(),
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
-            interruption={
-                "enabled": True,
-                "mode": "adaptive",
-                "min_duration": 0.5,
-                "min_words": 0,
+            endpointing={
+                "mode": "fixed",
+                "min_delay": USER_TURN_MIN_ENDPOINTING_S,
+                "max_delay": USER_TURN_MAX_ENDPOINTING_S,
             },
+            interruption={"enabled": False},
         ),
-        )
+    )
 
 
 def start_opening_turn(
@@ -275,8 +283,34 @@ def start_opening_turn(
 ):
     return session.generate_reply(
         instructions=instructions or INITIAL_GREETING_INSTRUCTIONS,
-        allow_interruptions=True,
+        allow_interruptions=False,
     )
+
+
+def bind_mic_mute_while_speaking(session: AgentSession) -> None:
+    unmute_task: asyncio.Task[None] | None = None
+
+    def cancel_pending_unmute() -> None:
+        nonlocal unmute_task
+        if unmute_task is not None and not unmute_task.done():
+            unmute_task.cancel()
+        unmute_task = None
+
+    async def unmute_after_hold() -> None:
+        await asyncio.sleep(MIC_UNMUTE_HOLD_S)
+        session.input.set_audio_enabled(True)
+
+    @session.on("agent_state_changed")
+    def on_agent_state_changed(ev: AgentStateChangedEvent) -> None:
+        nonlocal unmute_task
+        if ev.new_state == "speaking":
+            cancel_pending_unmute()
+            session.input.set_audio_enabled(False)
+            return
+        if ev.old_state != "speaking":
+            return
+        cancel_pending_unmute()
+        unmute_task = asyncio.create_task(unmute_after_hold())
 
 
 server = AgentServer()
@@ -288,6 +322,7 @@ async def mio_conversation(ctx: agents.JobContext):
     memory = Mem0TurnMemory.from_env()
     agent = create_assistant(system_prompt_path(), memory=memory)
     session = create_session()
+    bind_mic_mute_while_speaking(session)
     await session.start(
         room=ctx.room,
         agent=agent,

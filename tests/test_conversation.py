@@ -1,5 +1,7 @@
+import asyncio
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -15,7 +17,10 @@ from mio_core_services.constants import (
 )
 from mio_core_services.conversation import (
     REQUIRED_ENV_VARS,
+    USER_TURN_MAX_ENDPOINTING_S,
+    USER_TURN_MIN_ENDPOINTING_S,
     apply_os_level_baseten_api_key,
+    bind_mic_mute_while_speaking,
     create_session,
     load_system_prompt,
     require_env,
@@ -151,8 +156,10 @@ def test_create_session_uses_conversation_models(monkeypatch):
     assert captured["session"]["tts"].__class__.__name__ == "FakeTTS"
     assert captured["session"]["vad"] == "fake-vad"
     turn_handling = captured["session"]["turn_handling"]
-    assert turn_handling["interruption"]["enabled"] is True
-    assert turn_handling["interruption"]["mode"] == "adaptive"
+    assert turn_handling["interruption"]["enabled"] is False
+    assert turn_handling["endpointing"]["mode"] == "fixed"
+    assert turn_handling["endpointing"]["min_delay"] == USER_TURN_MIN_ENDPOINTING_S
+    assert turn_handling["endpointing"]["max_delay"] == USER_TURN_MAX_ENDPOINTING_S
     assert captured["vad"] is True
 
 
@@ -161,7 +168,7 @@ def test_opening_turn_asks_llm_to_generate_a_varied_greeting():
     start_opening_turn(session)
     session.generate_reply.assert_called_once_with(
         instructions=INITIAL_GREETING_INSTRUCTIONS,
-        allow_interruptions=True,
+        allow_interruptions=False,
     )
     session.say.assert_not_called()
 
@@ -171,7 +178,7 @@ def test_opening_turn_can_use_first_use_instructions():
     start_opening_turn(session, "Introduce yourself as Mio.")
     session.generate_reply.assert_called_once_with(
         instructions="Introduce yourself as Mio.",
-        allow_interruptions=True,
+        allow_interruptions=False,
     )
 
 
@@ -189,3 +196,60 @@ def test_default_system_prompt_suggests_opening_topics():
     assert "on their mind" in prompt
     assert "you already greeted them" not in prompt
     assert "first-use setup" in prompt
+
+
+class _FakeAudioInput:
+    def __init__(self) -> None:
+        self.audio_enabled = True
+
+    def set_audio_enabled(self, enabled: bool) -> None:
+        self.audio_enabled = enabled
+
+
+class _FakeSession:
+    def __init__(self) -> None:
+        self.input = _FakeAudioInput()
+        self.handlers: dict[str, object] = {}
+
+    def on(self, event: str):
+        def decorator(fn):
+            self.handlers[event] = fn
+            return fn
+
+        return decorator
+
+
+@pytest.mark.asyncio
+async def test_mic_mutes_while_agent_speaks_then_unmutes_after_hold(monkeypatch):
+    monkeypatch.setattr(
+        "mio_core_services.conversation.MIC_UNMUTE_HOLD_S", 0.01
+    )
+    session = _FakeSession()
+    bind_mic_mute_while_speaking(session)
+    on_state = session.handlers["agent_state_changed"]
+
+    on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
+    assert session.input.audio_enabled is False
+
+    on_state(SimpleNamespace(old_state="speaking", new_state="listening"))
+    assert session.input.audio_enabled is False
+    await asyncio.sleep(0.03)
+    assert session.input.audio_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_mic_stays_muted_if_agent_starts_speaking_during_unmute_hold(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "mio_core_services.conversation.MIC_UNMUTE_HOLD_S", 0.05
+    )
+    session = _FakeSession()
+    bind_mic_mute_while_speaking(session)
+    on_state = session.handlers["agent_state_changed"]
+
+    on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
+    on_state(SimpleNamespace(old_state="speaking", new_state="listening"))
+    on_state(SimpleNamespace(old_state="listening", new_state="speaking"))
+    await asyncio.sleep(0.08)
+    assert session.input.audio_enabled is False
