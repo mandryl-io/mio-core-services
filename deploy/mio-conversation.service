@@ -17,6 +17,7 @@ Environment=ALSA_CONFIG_DIR=/usr/share/alsa
 Environment=ALSA_CONFIG_PATH=/usr/share/alsa/alsa.conf
 Environment=PA_ALSA_PLUGHW=1
 Environment=MIO_SYSTEM_PROMPT_PATH=prompts/default.md
+# MIO_FIRST_USE is set in /etc/default/mio by deploy/apply-and-reboot.sh.
 # Device names and ALSA env live in the Makefile target.
 ExecStart=/usr/bin/make run-conversation-service
 StandardInput=tty
